@@ -1,0 +1,20 @@
+{
+  "name": "@token-ring/github",
+  "version": "0.1.0",
+  "dependencies": {
+    "@token-ring/chat": "0.1.0",
+    "@token-ring/eslint-config": "0.0.0",
+    "@token-ring/registry": "0.1.0",
+    "glob-gitignore": "^1.0.15"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./*": "./*.js"
+  },
+  "private": true,
+  "scripts": {
+    "lint": "eslint ",
+    "eslint": "eslint --fix ./"
+  },
+  "type": "module"
+}
