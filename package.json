@@ -1,20 +1,28 @@
 {
-  "name": "@token-ring/github",
-  "version": "0.1.0",
+  "name": "@tokenring-ai/github",
+  "version": "0.2.0",
+  "description": "GitHub repository search and documentation retrieval for Token Ring",
   "dependencies": {
-    "@token-ring/chat": "0.1.0",
-    "@token-ring/eslint-config": "0.0.0",
-    "@token-ring/registry": "0.1.0",
-    "glob-gitignore": "^1.0.15"
+    "@tokenring-ai/agent": "0.2.0",
+    "@tokenring-ai/app": "0.2.0",
+    "@tokenring-ai/chat": "0.2.0",
+    "@tokenring-ai/utility": "0.2.0",
+    "zod": "^4.3.6"
   },
   "exports": {
-    ".": "./index.js",
-    "./*": "./*.js"
+    ".": "./index.ts",
+    "./*": "./*.ts"
   },
-  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
   "scripts": {
-    "lint": "eslint ",
-    "eslint": "eslint --fix ./"
-  },
-  "type": "module"
+    "test": "vitest run",
+    "build": "tsc --noEmit",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  }
 }
