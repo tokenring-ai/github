@@ -26,4 +26,4 @@ Retrieve the main documentation files for a GitHub repository.
 
 /github docs vercel/ai`;
 
-export default {name: "github docs", description: "/github docs - Get repository documentation", help, execute} satisfies TokenRingAgentCommand;
+export default {name: "github docs", description: "Get repository documentation", help, execute} satisfies TokenRingAgentCommand;

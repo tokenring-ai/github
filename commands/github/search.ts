@@ -27,4 +27,4 @@ Search GitHub repositories by keyword.
 
 /github search token ring`;
 
-export default {name: "github search", description: "/github search - Search repositories", help, execute} satisfies TokenRingAgentCommand;
+export default {name: "github search", description: "Search repositories", help, execute} satisfies TokenRingAgentCommand;

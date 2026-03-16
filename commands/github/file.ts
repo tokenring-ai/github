@@ -34,4 +34,4 @@ Retrieve a file from a GitHub repository.
 /github file vercel/ai README.md
 /github file vercel/ai packages/core/package.json main`;
 
-export default {name: "github file", description: "/github file - Get a repository file", help, execute} satisfies TokenRingAgentCommand;
+export default {name: "github file", description: "Get a repository file", help, execute} satisfies TokenRingAgentCommand;
