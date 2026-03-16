@@ -1,13 +1,20 @@
-import Agent from "@tokenring-ai/agent/Agent";
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import markdownTable from "@tokenring-ai/utility/string/markdownTable";
 import GitHubService from "../../GitHubService.ts";
 
-async function execute(remainder: string, agent: Agent): Promise<string> {
-  const query = remainder.trim();
-  if (!query) throw new CommandFailedError("Usage: /github search <query>");
+const inputSchema = {
+  args: {},
+  positionals: [{
+    name: "query",
+    description: "Search query",
+    required: true,
+    greedy: true,
+  }],
+  allowAttachments: false,
+} as const satisfies AgentCommandInputSchema;
 
+async function execute({positionals: { query }, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const results = await agent.requireServiceByType(GitHubService).searchRepositories(query, {limit: 10});
   return `
 GitHub repositories for "${query}":
@@ -19,12 +26,10 @@ ${markdownTable(
   `.trim();
 }
 
-const help = `# /github search <query>
-
-Search GitHub repositories by keyword.
+const help = `Search GitHub repositories by keyword.
 
 ## Example
 
 /github search token ring`;
 
-export default {name: "github search", description: "Search repositories", help, execute} satisfies TokenRingAgentCommand;
+export default {name: "github search", description: "Search repositories", inputSchema, help, execute} satisfies TokenRingAgentCommand<typeof inputSchema>;

@@ -1,6 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import GitHubService from "../../GitHubService.ts";
 
 function parseRepoSlug(slug: string): {owner: string; repo: string} {
@@ -9,11 +8,30 @@ function parseRepoSlug(slug: string): {owner: string; repo: string} {
   return {owner, repo};
 }
 
-async function execute(remainder: string, agent: Agent): Promise<string> {
-  const [slug, path, ref] = remainder.trim().split(/\s+/);
-  if (!slug || !path) throw new CommandFailedError("Usage: /github file <owner>/<repo> <path> [ref]");
+const inputSchema = {
+  args: {},
+  positionals: [
+    {
+      name: "repositorySlug",
+      description: "Repository slug in <owner>/<repo> format",
+      required: true,
+    }, {
+      name: "path",
+      description: "Path to the file inside the repository",
+      required: true,
+    }, {
+      name: "ref",
+      description: "Git reference (branch, tag, commit) to use",
+      required: false,
+    },
+  ],
+  allowAttachments: false,
+} as const satisfies AgentCommandInputSchema;
 
-  const {owner, repo} = parseRepoSlug(slug);
+async function execute({positionals, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+  const {repositorySlug, path, ref} = positionals;
+
+  const {owner, repo} = parseRepoSlug(repositorySlug);
   const file = await agent.requireServiceByType(GitHubService).getFile(owner, repo, path, ref);
 
   return `
@@ -25,13 +43,11 @@ ${file.content}
   `.trim();
 }
 
-const help = `# /github file <owner>/<repo> <path> [ref]
-
-Retrieve a file from a GitHub repository.
+const help = `Retrieve a file from a GitHub repository.
 
 ## Example
 
 /github file vercel/ai README.md
 /github file vercel/ai packages/core/package.json main`;
 
-export default {name: "github file", description: "Get a repository file", help, execute} satisfies TokenRingAgentCommand;
+export default {name: "github file", description: "Get a repository file", inputSchema, help, execute} satisfies TokenRingAgentCommand<typeof inputSchema>;
