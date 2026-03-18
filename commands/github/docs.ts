@@ -14,8 +14,7 @@ const inputSchema = {
     name: "repositorySlug",
     description: "Repository slug in <owner>/<repo> format",
     required: true,
-  }],
-  allowAttachments: false,
+  }]
 } as const satisfies AgentCommandInputSchema;
 
 async function execute({positionals: {repositorySlug}, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {

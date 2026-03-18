@@ -24,8 +24,7 @@ const inputSchema = {
       description: "Git reference (branch, tag, commit) to use",
       required: false,
     },
-  ],
-  allowAttachments: false,
+  ]
 } as const satisfies AgentCommandInputSchema;
 
 async function execute({positionals, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
