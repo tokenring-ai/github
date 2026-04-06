@@ -1,7 +1,7 @@
 {
   "name": "@tokenring-ai/github",
   "version": "0.2.0",
-  "description": "GitHub repository search and documentation retrieval for Token Ring",
+  "description": "Repository management, PR tracking, and issue interaction via the GitHub API.",
   "dependencies": {
     "@tokenring-ai/agent": "0.2.0",
     "@tokenring-ai/app": "0.2.0",

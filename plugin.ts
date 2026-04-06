@@ -14,6 +14,7 @@ const packageConfigSchema = z.object({
 
 export default {
   name: packageJSON.name,
+  displayName: "GitHub Integration",
   version: packageJSON.version,
   description: packageJSON.description,
   install(app, config) {
