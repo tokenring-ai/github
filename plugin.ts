@@ -1,5 +1,5 @@
 import {AgentCommandService} from "@tokenring-ai/agent";
-import {TokenRingPlugin} from "@tokenring-ai/app";
+import type {TokenRingPlugin} from "@tokenring-ai/app";
 import {ChatService} from "@tokenring-ai/chat";
 import {z} from "zod";
 import commands from "./commands.ts";
@@ -19,8 +19,12 @@ export default {
   description: packageJSON.description,
   install(app, config) {
     app.addServices(new GitHubService(config.github));
-    app.waitForService(ChatService, chatService => chatService.addTools(tools));
-    app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(commands));
+    app.waitForService(ChatService, (chatService) =>
+      chatService.addTools(tools),
+    );
+    app.waitForService(AgentCommandService, (agentCommandService) =>
+      agentCommandService.addAgentCommands(commands),
+    );
   },
   config: packageConfigSchema,
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;

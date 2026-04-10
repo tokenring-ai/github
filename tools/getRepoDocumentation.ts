@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import GitHubService from "../GitHubService.ts";
 
@@ -14,17 +14,33 @@ const inputSchema = z.object({
   maxFiles: z.number().int().positive().max(10).default(5).optional(),
 });
 
-async function execute({owner, repo, ref, maxFiles}: z.output<typeof inputSchema>, agent: Agent) {
+async function execute(
+  {owner, repo, ref, maxFiles}: z.output<typeof inputSchema>,
+  agent: Agent,
+) {
   const github = agent.requireServiceByType(GitHubService);
-  const documentation = await github.getRepositoryDocumentation(owner, repo, {ref, maxFiles});
+  const documentation = await github.getRepositoryDocumentation(owner, repo, {
+    ref,
+    maxFiles,
+  });
 
-  return documentation.files.map(file => `
+  return documentation.files
+    .map((file) =>
+      `
 ## ${file.path}
 
 \`\`\`md
 ${file.content}
 \`\`\`
-  `.trim()).join("\n\n");
+  `.trim(),
+    )
+    .join("\n\n");
 }
 
-export default {name, displayName, description, inputSchema, execute} satisfies TokenRingToolDefinition<typeof inputSchema>;
+export default {
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
+} satisfies TokenRingToolDefinition<typeof inputSchema>;
