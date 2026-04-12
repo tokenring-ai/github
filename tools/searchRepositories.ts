@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import markdownTable from "@tokenring-ai/utility/string/markdownTable";
 import {z} from "zod";
 import GitHubService from "../GitHubService.ts";
@@ -18,7 +18,7 @@ const inputSchema = z.object({
 async function execute(
   {query, limit, sort, order}: z.output<typeof inputSchema>,
   agent: Agent,
-) {
+): Promise<TokenRingToolResult> {
   const github = agent.requireServiceByType(GitHubService);
   const results = await github.searchRepositories(query, {
     limit,
