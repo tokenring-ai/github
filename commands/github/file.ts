@@ -1,12 +1,11 @@
-import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import { CommandFailedError } from "@tokenring-ai/agent/AgentError";
+import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import GitHubService from "../../GitHubService.ts";
 
 function parseRepoSlug(slug: string): { owner: string; repo: string } {
   const [owner, repo] = slug.split("/");
-  if (!owner || !repo)
-    throw new CommandFailedError("Repository must be in <owner>/<repo> format");
-  return {owner, repo};
+  if (!owner || !repo) throw new CommandFailedError("Repository must be in <owner>/<repo> format");
+  return { owner, repo };
 }
 
 const inputSchema = {
@@ -30,16 +29,11 @@ const inputSchema = {
   ],
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({
-                         positionals,
-                         agent,
-                       }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const {repositorySlug, path, ref} = positionals;
+async function execute({ positionals, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+  const { repositorySlug, path, ref } = positionals;
 
-  const {owner, repo} = parseRepoSlug(repositorySlug);
-  const file = await agent
-    .requireServiceByType(GitHubService)
-    .getFile(owner, repo, path, ref);
+  const { owner, repo } = parseRepoSlug(repositorySlug);
+  const file = await agent.requireServiceByType(GitHubService).getFile(owner, repo, path, ref);
 
   return `
 Path: ${file.path}

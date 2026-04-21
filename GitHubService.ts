@@ -1,7 +1,7 @@
-import type {TokenRingService} from "@tokenring-ai/app/types";
-import {HttpService} from "@tokenring-ai/utility/http/HttpService";
-import type {z} from "zod";
-import type {GitHubConfigSchema} from "./schema.ts";
+import type { TokenRingService } from "@tokenring-ai/app/types";
+import { HttpService } from "@tokenring-ai/utility/http/HttpService";
+import type { z } from "zod";
+import type { GitHubConfigSchema } from "./schema.ts";
 
 export type GitHubRepoSearchResult = {
   full_name: string;
@@ -27,8 +27,8 @@ type GitHubContentsResponse = {
   sha: string;
   size: number;
   type: "file" | "dir";
-  content?: string;
-  encoding?: string;
+  content?: string | undefined;
+  encoding?: string | undefined;
   download_url?: string | null;
 };
 
@@ -36,16 +36,13 @@ type GitHubTreeResponse = {
   tree?: Array<{
     path: string;
     type: "blob" | "tree";
-    size?: number;
+    size?: number | undefined;
   }>;
 };
 
-export default class GitHubService
-  extends HttpService
-  implements TokenRingService {
+export default class GitHubService extends HttpService implements TokenRingService {
   readonly name = "GitHubService";
-  description =
-    "Search GitHub repositories and retrieve repository documentation and files";
+  description = "Search GitHub repositories and retrieve repository documentation and files";
 
   protected baseUrl: string;
   protected defaultHeaders: Record<string, string>;
@@ -56,14 +53,14 @@ export default class GitHubService
     this.defaultHeaders = {
       Accept: "application/vnd.github+json",
       "User-Agent": options.userAgent,
-      ...(options.token ? {Authorization: `Bearer ${options.token}`} : {}),
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     };
   }
 
   async searchRepositories(
     query: string,
     options: {
-      limit?: number;
+      limit?: number | undefined;
       sort?: "stars" | "updated";
       order?: "asc" | "desc";
     } = {},
@@ -76,11 +73,7 @@ export default class GitHubService
       order: options.order ?? "desc",
     });
 
-    const response = await this.fetchJson(
-      `/search/repositories?${params.toString()}`,
-      {method: "GET"},
-      "GitHub repository search",
-    );
+    const response = await this.fetchJson(`/search/repositories?${params.toString()}`, { method: "GET" }, "GitHub repository search");
     return (response.items ?? []).map((repo: GitHubRepository) => ({
       full_name: repo.full_name,
       description: repo.description,
@@ -92,25 +85,16 @@ export default class GitHubService
   }
 
   async getRepository(owner: string, repo: string): Promise<GitHubRepository> {
-    return await this.fetchJson(
-      `/repos/${owner}/${repo}`,
-      {method: "GET"},
-      `GitHub repository lookup for ${owner}/${repo}`,
-    );
+    return await this.fetchJson(`/repos/${owner}/${repo}`, { method: "GET" }, `GitHub repository lookup for ${owner}/${repo}`);
   }
 
-  async getFile(
-    owner: string,
-    repo: string,
-    path: string,
-    ref?: string,
-  ): Promise<{ path: string; content: string; sha: string; size: number }> {
+  async getFile(owner: string, repo: string, path: string, ref?: string): Promise<{ path: string; content: string; sha: string; size: number }> {
     const params = new URLSearchParams();
     if (ref) params.set("ref", ref);
     const suffix = params.toString() ? `?${params.toString()}` : "";
     const response = (await this.fetchJson(
       `/repos/${owner}/${repo}/contents/${path}${suffix}`,
-      {method: "GET"},
+      { method: "GET" },
       `GitHub file retrieval for ${owner}/${repo}:${path}`,
     )) as GitHubContentsResponse;
 
@@ -118,17 +102,12 @@ export default class GitHubService
       throw new Error(`Path ${path} in ${owner}/${repo} is not a file`);
     }
     if (response.encoding !== "base64" || !response.content) {
-      throw new Error(
-        `Path ${path} in ${owner}/${repo} did not return base64 file content`,
-      );
+      throw new Error(`Path ${path} in ${owner}/${repo} did not return base64 file content`);
     }
 
     return {
       path: response.path,
-      content: Buffer.from(
-        response.content.replace(/\n/g, ""),
-        "base64",
-      ).toString("utf8"),
+      content: Buffer.from(response.content.replace(/\n/g, ""), "base64").toString("utf8"),
       sha: response.sha,
       size: response.size,
     };
@@ -137,7 +116,7 @@ export default class GitHubService
   async getRepositoryDocumentation(
     owner: string,
     repo: string,
-    options: { ref?: string; maxFiles?: number } = {},
+    options: { ref?: string | undefined; maxFiles?: number | undefined } = {},
   ): Promise<{
     repository: string;
     branch: string;
@@ -147,7 +126,7 @@ export default class GitHubService
     const branch = options.ref ?? repository.default_branch;
     const tree = (await this.fetchJson(
       `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-      {method: "GET"},
+      { method: "GET" },
       `GitHub tree retrieval for ${owner}/${repo}`,
     )) as GitHubTreeResponse;
 
@@ -158,13 +137,11 @@ export default class GitHubService
       throw new Error(`No documentation files found for ${owner}/${repo}`);
     }
 
-    const files = await Promise.all(
-      selected.map((file) => this.getFile(owner, repo, file.path, branch)),
-    );
+    const files = await Promise.all(selected.map(file => this.getFile(owner, repo, file.path, branch)));
     return {
       repository: `${owner}/${repo}`,
       branch,
-      files: files.map((file) => ({
+      files: files.map(file => ({
         path: file.path,
         size: file.size,
         content: file.content,
@@ -172,12 +149,10 @@ export default class GitHubService
     };
   }
 
-  private rankDocumentationFiles(
-    files: Array<{ path: string; type: "blob" | "tree"; size?: number }>,
-  ): Array<{ path: string; size: number }> {
+  private rankDocumentationFiles(files: Array<{ path: string; type: "blob" | "tree"; size?: number | undefined }>): Array<{ path: string; size: number }> {
     return files
-      .filter((file) => file.type === "blob")
-      .filter((file) => {
+      .filter(file => file.type === "blob")
+      .filter(file => {
         const lower = file.path.toLowerCase();
         return (
           lower === "readme.md" ||
@@ -190,13 +165,13 @@ export default class GitHubService
           lower.endsWith(".mdx")
         );
       })
-      .map((file) => ({
+      .map(file => ({
         path: file.path,
         size: file.size ?? 0,
         rank: this.documentationRank(file.path),
       }))
       .sort((a, b) => a.rank - b.rank || a.path.localeCompare(b.path))
-      .map((file) => ({path: file.path, size: file.size}));
+      .map(file => ({ path: file.path, size: file.size }));
   }
 
   private documentationRank(path: string): number {
