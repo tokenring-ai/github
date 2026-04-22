@@ -1,6 +1,6 @@
 import type { TokenRingService } from "@tokenring-ai/app/types";
-import { HttpService } from "@tokenring-ai/utility/http/HttpService";
-import type { z } from "zod";
+import { HTTPRetriever } from "@tokenring-ai/utility/http/HTTPRetriever";
+import { z } from "zod";
 import type { GitHubConfigSchema } from "./schema.ts";
 
 export type GitHubRepoSearchResult = {
@@ -40,21 +40,68 @@ type GitHubTreeResponse = {
   }>;
 };
 
-export default class GitHubService extends HttpService implements TokenRingService {
+const GitHubRepositorySchema = z
+  .object({
+    name: z.string(),
+    full_name: z.string(),
+    description: z.string().nullable(),
+    html_url: z.string(),
+    default_branch: z.string(),
+    stargazers_count: z.number(),
+    language: z.string().nullable(),
+  })
+  .passthrough();
+
+const GitHubRepositorySearchResponseSchema = z
+  .object({
+    items: z.array(GitHubRepositorySchema).default([]),
+  })
+  .passthrough();
+
+const GitHubContentsResponseSchema = z
+  .object({
+    path: z.string(),
+    sha: z.string(),
+    size: z.number(),
+    type: z.enum(["file", "dir"]),
+    content: z.string().optional(),
+    encoding: z.string().optional(),
+    download_url: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const GitHubTreeResponseSchema = z
+  .object({
+    tree: z
+      .array(
+        z
+          .object({
+            path: z.string(),
+            type: z.enum(["blob", "tree"]),
+            size: z.number().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough();
+
+export default class GitHubService implements TokenRingService {
   readonly name = "GitHubService";
   description = "Search GitHub repositories and retrieve repository documentation and files";
 
-  protected baseUrl: string;
-  protected defaultHeaders: Record<string, string>;
+  private readonly retriever: HTTPRetriever;
 
   constructor(readonly options: z.output<typeof GitHubConfigSchema>) {
-    super();
-    this.baseUrl = options.baseUrl;
-    this.defaultHeaders = {
-      Accept: "application/vnd.github+json",
-      "User-Agent": options.userAgent,
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    };
+    this.retriever = new HTTPRetriever({
+      baseUrl: options.baseUrl,
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": options.userAgent,
+        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      },
+      timeout: 10_000,
+    });
   }
 
   async searchRepositories(
@@ -73,8 +120,13 @@ export default class GitHubService extends HttpService implements TokenRingServi
       order: options.order ?? "desc",
     });
 
-    const response = await this.fetchJson(`/search/repositories?${params.toString()}`, { method: "GET" }, "GitHub repository search");
-    return (response.items ?? []).map((repo: GitHubRepository) => ({
+    const response = await this.retriever.fetchValidatedJson({
+      url: `/search/repositories?${params.toString()}`,
+      opts: { method: "GET" },
+      schema: GitHubRepositorySearchResponseSchema,
+      context: "GitHub repository search",
+    });
+    return response.items.map(repo => ({
       full_name: repo.full_name,
       description: repo.description,
       html_url: repo.html_url,
@@ -85,18 +137,24 @@ export default class GitHubService extends HttpService implements TokenRingServi
   }
 
   async getRepository(owner: string, repo: string): Promise<GitHubRepository> {
-    return await this.fetchJson(`/repos/${owner}/${repo}`, { method: "GET" }, `GitHub repository lookup for ${owner}/${repo}`);
+    return await this.retriever.fetchValidatedJson({
+      url: `/repos/${owner}/${repo}`,
+      opts: { method: "GET" },
+      schema: GitHubRepositorySchema,
+      context: `GitHub repository lookup for ${owner}/${repo}`,
+    });
   }
 
   async getFile(owner: string, repo: string, path: string, ref?: string): Promise<{ path: string; content: string; sha: string; size: number }> {
     const params = new URLSearchParams();
     if (ref) params.set("ref", ref);
     const suffix = params.toString() ? `?${params.toString()}` : "";
-    const response = (await this.fetchJson(
-      `/repos/${owner}/${repo}/contents/${path}${suffix}`,
-      { method: "GET" },
-      `GitHub file retrieval for ${owner}/${repo}:${path}`,
-    )) as GitHubContentsResponse;
+    const response = (await this.retriever.fetchValidatedJson({
+      url: `/repos/${owner}/${repo}/contents/${path}${suffix}`,
+      opts: { method: "GET" },
+      schema: GitHubContentsResponseSchema,
+      context: `GitHub file retrieval for ${owner}/${repo}:${path}`,
+    })) as GitHubContentsResponse;
 
     if (response.type !== "file") {
       throw new Error(`Path ${path} in ${owner}/${repo} is not a file`);
@@ -124,11 +182,12 @@ export default class GitHubService extends HttpService implements TokenRingServi
   }> {
     const repository = await this.getRepository(owner, repo);
     const branch = options.ref ?? repository.default_branch;
-    const tree = (await this.fetchJson(
-      `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-      { method: "GET" },
-      `GitHub tree retrieval for ${owner}/${repo}`,
-    )) as GitHubTreeResponse;
+    const tree = (await this.retriever.fetchValidatedJson({
+      url: `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+      opts: { method: "GET" },
+      schema: GitHubTreeResponseSchema,
+      context: `GitHub tree retrieval for ${owner}/${repo}`,
+    })) as GitHubTreeResponse;
 
     const candidates = this.rankDocumentationFiles(tree.tree ?? []);
     const maxFiles = options.maxFiles ?? 5;
