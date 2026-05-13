@@ -4,7 +4,9 @@ GitHub repository search and documentation retrieval for Token Ring.
 
 ## Overview
 
-The `@tokenring-ai/github` package provides comprehensive GitHub API integration for the Token Ring AI ecosystem. It enables agents and users to search repositories, retrieve documentation, and fetch files from GitHub repositories through a configurable service with both tool-based and command-line interfaces.
+The `@tokenring-ai/github` package provides comprehensive GitHub API integration for the Token Ring AI ecosystem. It
+enables agents and users to search repositories, retrieve documentation, and fetch files from GitHub repositories
+through a configurable service with both tool-based and command-line interfaces.
 
 This package integrates seamlessly with the Token Ring framework through its plugin system, offering:
 
@@ -35,11 +37,34 @@ bun add @tokenring-ai/github
 - **Configurable API**: Support for custom GitHub Enterprise URLs and authentication tokens
 - **Rate Limit Handling**: Built-in HTTP service with error handling and retry capabilities
 
+## Chat Commands
+
+| Command                                    | Description                                   |
+|--------------------------------------------|-----------------------------------------------|
+| `/github search <query>`                   | Search GitHub repositories by keyword         |
+| `/github docs <owner>/<repo>`              | Retrieve documentation files for a repository |
+| `/github file <owner>/<repo> <path> [ref]` | Retrieve a specific file from a repository    |
+
+## Tools
+
+| Tool                          | Description                                       |
+|-------------------------------|---------------------------------------------------|
+| `github_searchRepositories`   | Search GitHub repositories by keyword             |
+| `github_getRepoDocumentation` | Retrieve key documentation files for a repository |
+| `github_getRepoFile`          | Retrieve a specific file from a repository        |
+
 ## Core Components
 
 ### GitHubService
 
-The main service class that extends `HttpService` and implements `TokenRingService`.
+The main service class that implements `TokenRingService`.
+
+**Service Properties:**
+
+```typescript
+readonly name = "GitHubService";
+description = "Search GitHub repositories and retrieve repository documentation and files";
+```
 
 **Constructor:**
 
@@ -49,10 +74,6 @@ constructor(options: {
   token?: string;         // Optional authentication token
   userAgent: string;      // User-Agent header (default: TokenRing/0.2.0)
 })
-
-class GitHubService extends HttpService implements TokenRingService {
-  readonly name = "GitHubService";
-  readonly description = "Search GitHub repositories and retrieve repository documentation and files";
 ```
 
 **Methods:**
@@ -65,16 +86,16 @@ Search GitHub repositories by keyword.
 
 - `query` (string): Search query string
 - `options` (object, optional):
-  - `limit` (number): Maximum results (default: 10, max: 50)
-  - `sort` (string): Sort field - "stars" or "updated"
-  - `order` (string): Sort order - "asc" or "desc"
+- `limit` (number): Maximum results (default: 10, max: 50)
+- `sort` (string): Sort field - "stars" or "updated"
+- `order` (string): Sort order - "asc" or "desc"
 
 **Returns:** `Promise<GitHubRepoSearchResult[]>`
 
 **Example:**
 
 ```typescript
-const github = new GitHubService({baseUrl: "https://api.github.com"});
+const github = new GitHubService({ baseUrl: "https://api.github.com" });
 const results = await github.searchRepositories("token ring", {
   limit: 10,
   sort: "stars",
@@ -121,10 +142,11 @@ Retrieve key documentation files from a repository.
 - `owner` (string): Repository owner or organization
 - `repo` (string): Repository name
 - `options` (object, optional):
-  - `ref` (string): Branch, tag, or commit SHA (uses default branch if not specified)
-  - `maxFiles` (number): Maximum files to retrieve (default: 5, max: 10)
+- `ref` (string): Branch, tag, or commit SHA (uses default branch if not specified)
+- `maxFiles` (number): Maximum files to retrieve (default: 5, max: 10)
 
-**Returns:** `Promise<{repository: string; branch: string; files: Array<{path: string; size: number; content: string}>}>`
+**Returns:**
+`Promise<{repository: string; branch: string; files: Array<{path: string; size: number; content: string}>}>`
 
 **Documentation File Ranking:**
 
@@ -136,6 +158,8 @@ Files are ranked by importance:
 4. Other files in `docs/` directory
 5. Any `.md` or `.mdx` files
 
+## Configuration
+
 ### Configuration Schema
 
 ```typescript
@@ -146,6 +170,15 @@ const GitHubConfigSchema = z.object({
 });
 ```
 
+### Configuration Example
+
+```yaml
+github:
+  baseUrl: "https://api.github.com"
+  token: "${GITHUB_TOKEN}"
+  userAgent: "TokenRing/0.2.0"
+```
+
 ## Usage Examples
 
 ### Plugin Installation
@@ -153,7 +186,7 @@ const GitHubConfigSchema = z.object({
 Install the plugin in your TokenRing application:
 
 ```typescript
-import {App} from "@tokenring-ai/app";
+import { App } from "@tokenring-ai/app";
 import githubPlugin from "@tokenring-ai/github/plugin";
 
 const app = new App();
@@ -161,7 +194,7 @@ const app = new App();
 await app.install(githubPlugin, {
   github: {
     baseUrl: "https://api.github.com",
-    token: process.env.GITHUB_TOKEN,  // Optional for private repos
+    token: process.env.GITHUB_TOKEN,
     userAgent: "TokenRing/0.2.0"
   }
 });
@@ -170,9 +203,9 @@ await app.install(githubPlugin, {
 ### Programmatic Service Usage
 
 ```typescript
-import {App} from "@tokenring-ai/app";
-import GitHubService, {GitHubConfigSchema} from "@tokenring-ai/github";
-import {z} from "zod";
+import { App } from "@tokenring-ai/app";
+import GitHubService from "@tokenring-ai/github";
+import { z } from "zod";
 
 const app = new App();
 
@@ -189,10 +222,10 @@ const agent = await app.createAgent();
 const github = agent.requireServiceByType(GitHubService);
 
 // Search repositories
-const results = await github.searchRepositories("token ring", {limit: 10});
+const results = await github.searchRepositories("token ring", { limit: 10 });
 
 // Get documentation
-const docs = await github.getRepositoryDocumentation("vercel", "ai", {maxFiles: 5});
+const docs = await github.getRepositoryDocumentation("vercel", "ai", { maxFiles: 5 });
 
 // Get file
 const file = await github.getFile("vercel", "ai", "README.md");
@@ -209,17 +242,17 @@ The package provides three tools for AI agents:
 **Input Schema:**
 
 ```typescript
-{
-  query: string.min(1).describe("GitHub repository search query"),
-  limit: number.int().positive().max(50).default(10).optional(),
-  sort: enum(["stars", "updated"]).optional(),
-  order: enum(["asc", "desc"]).optional()
-}
+z.object({
+  query: z.string().min(1).describe("GitHub repository search query"),
+  limit: z.number().int().positive().max(50).default(10).optional(),
+  sort: z.enum(["stars", "updated"]).optional(),
+  order: z.enum(["asc", "desc"]).optional()
+})
 ```
 
 **Example Output:**
 
-```
+```text
 Repository search results for "token ring":
 
 | Repository | Stars | Language | Description |
@@ -235,17 +268,17 @@ Repository search results for "token ring":
 **Input Schema:**
 
 ```typescript
-{
-  owner: string.min(1).describe("GitHub repository owner or org"),
-  repo: string.min(1).describe("GitHub repository name"),
-  ref: string.optional().describe("Optional branch, tag, or commit"),
-  maxFiles: number.int().positive().max(10).default(5).optional()
-}
+z.object({
+  owner: z.string().min(1).describe("GitHub repository owner or org"),
+  repo: z.string().min(1).describe("GitHub repository name"),
+  ref: z.string().optional().describe("Optional branch, tag, or commit"),
+  maxFiles: z.number().int().positive().max(10).default(5).optional()
+})
 ```
 
 **Example Output:**
 
-```
+````text
 ## README.md
 
 ```md
@@ -261,8 +294,7 @@ The AI SDK provides utilities for building AI applications...
 
 Install the AI SDK...
 ```
-
-```
+````
 
 #### `github_getRepoFile`
 
@@ -271,25 +303,27 @@ Install the AI SDK...
 **Input Schema:**
 
 ```typescript
-{
-  owner: string.min(1).describe("GitHub repository owner or org"),
-  repo: string.min(1).describe("GitHub repository name"),
-  path: string.min(1).describe("Path to the file inside the repository"),
-  ref: string.optional().describe("Optional branch, tag, or commit")
-}
+z.object({
+  owner: z.string().min(1).describe("GitHub repository owner or org"),
+  repo: z.string().min(1).describe("GitHub repository name"),
+  path: z.string().min(1).describe("Path to the file inside the repository"),
+  ref: z.string().optional().describe("Optional branch, tag, or commit")
+})
 ```
 
 **Example Output:**
 
-```
+````text
 Path: README.md
 SHA: abc123def456
 Size: 2048
 
+```
 # Vercel AI SDK
 
 The AI SDK provides utilities for building AI applications...
 ```
+````
 
 ## Agent Commands
 
@@ -299,13 +333,13 @@ Search GitHub repositories by keyword.
 
 **Example:**
 
-```
+```bash
 /github search token ring
 ```
 
 **Output:**
 
-```
+```text
 GitHub repositories for "token ring":
 
 | Repository | Stars | Language | Description |
@@ -320,13 +354,13 @@ Retrieve the main documentation files for a GitHub repository.
 
 **Example:**
 
-```
+```bash
 /github docs vercel/ai
 ```
 
 **Output:**
 
-```
+```text
 ## README.md
 
 # Vercel AI SDK
@@ -346,14 +380,14 @@ Retrieve a file from a GitHub repository.
 
 **Examples:**
 
-```
+```bash
 /github file vercel/ai README.md
 /github file vercel/ai packages/core/package.json main
 ```
 
 **Output:**
 
-```
+```text
 Path: README.md
 SHA: abc123def456
 Size: 2048
@@ -407,11 +441,12 @@ app.waitForService(AgentCommandService, agent => agent.addAgentCommands(commands
 
 ## State Management
 
-This package is **stateless** and does not require state persistence. All operations are performed against the GitHub API with no local state maintenance.
+This package is **stateless** and does not require state persistence. All operations are performed against the GitHub
+API with no local state maintenance.
 
 ## Error Handling
 
-The service uses the `HttpService` base class which provides:
+The service uses the `HTTPRetriever` base class which provides:
 
 - Automatic error handling for HTTP requests
 - JSON response parsing with type safety
