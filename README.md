@@ -4,9 +4,7 @@ GitHub repository search and documentation retrieval for Token Ring.
 
 ## Overview
 
-The `@tokenring-ai/github` package provides comprehensive GitHub API integration for the Token Ring AI ecosystem. It
-enables agents and users to search repositories, retrieve documentation, and fetch files from GitHub repositories
-through a configurable service with both tool-based and command-line interfaces.
+The `@tokenring-ai/github` package provides comprehensive GitHub API integration for the Token Ring AI ecosystem. It enables agents and users to search repositories, retrieve documentation, and fetch files from GitHub repositories through a configurable service with both tool-based and command-line interfaces.
 
 This package integrates seamlessly with the Token Ring framework through its plugin system, offering:
 
@@ -39,23 +37,58 @@ bun add @tokenring-ai/github
 
 ## Chat Commands
 
-| Command                                    | Description                                   |
-|--------------------------------------------|-----------------------------------------------|
-| `/github search <query>`                   | Search GitHub repositories by keyword         |
-| `/github docs <owner>/<repo>`              | Retrieve documentation files for a repository |
-| `/github file <owner>/<repo> <path> [ref]` | Retrieve a specific file from a repository    |
+| Command | Description |
+|---------|-------------|
+| `/github search <query>` | Search GitHub repositories by keyword |
+| `/github docs <owner>/<repo>` | Retrieve documentation files for a repository |
+| `/github file <owner>/<repo> <path> [ref]` | Retrieve a specific file from a repository |
 
 ## Tools
 
-| Tool                          | Description                                       |
-|-------------------------------|---------------------------------------------------|
-| `github_searchRepositories`   | Search GitHub repositories by keyword             |
+| Tool | Description |
+|------|-------------|
+| `github_searchRepositories` | Search GitHub repositories by keyword |
 | `github_getRepoDocumentation` | Retrieve key documentation files for a repository |
-| `github_getRepoFile`          | Retrieve a specific file from a repository        |
+| `github_getRepoFile` | Retrieve a specific file from a repository |
 
-## Core Components
+## Configuration
 
-### GitHubService
+### Configuration Schema
+
+```typescript
+const GitHubConfigSchema = z.object({
+  baseUrl: z.string().default("https://api.github.com"),
+  token: z.string().exactOptional(),
+  userAgent: z.string().default("TokenRing/0.2.0"),
+});
+```
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GITHUB_TOKEN` | GitHub authentication token for API requests | Optional |
+
+### Configuration Example
+
+```yaml
+github:
+  baseUrl: "https://api.github.com"
+  token: "${GITHUB_TOKEN}"
+  userAgent: "TokenRing/0.2.0"
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## Developer Reference
+
+### Core Components
+
+#### GitHubService
 
 The main service class that implements `TokenRingService`.
 
@@ -78,7 +111,7 @@ constructor(options: {
 
 **Methods:**
 
-#### `searchRepositories(query, options)`
+##### searchRepositories(query, options)
 
 Search GitHub repositories by keyword.
 
@@ -86,9 +119,9 @@ Search GitHub repositories by keyword.
 
 - `query` (string): Search query string
 - `options` (object, optional):
-- `limit` (number): Maximum results (default: 10, max: 50)
-- `sort` (string): Sort field - "stars" or "updated"
-- `order` (string): Sort order - "asc" or "desc"
+  - `limit` (number): Maximum results (default: 10, max: 50)
+  - `sort` (string): Sort field - "stars" or "updated"
+  - `order` (string): Sort order - "asc" or "desc"
 
 **Returns:** `Promise<GitHubRepoSearchResult[]>`
 
@@ -107,7 +140,7 @@ results.forEach(repo => {
 });
 ```
 
-#### `getRepository(owner, repo)`
+##### getRepository(owner, repo)
 
 Get detailed information about a specific repository.
 
@@ -118,7 +151,7 @@ Get detailed information about a specific repository.
 
 **Returns:** `Promise<GitHubRepository>`
 
-#### `getFile(owner, repo, path, ref)`
+##### getFile(owner, repo, path, ref)
 
 Retrieve a file from a repository.
 
@@ -133,7 +166,7 @@ Retrieve a file from a repository.
 
 **Throws:** Error if path is not a file or if base64 encoding fails
 
-#### `getRepositoryDocumentation(owner, repo, options)`
+##### getRepositoryDocumentation(owner, repo, options)
 
 Retrieve key documentation files from a repository.
 
@@ -142,11 +175,10 @@ Retrieve key documentation files from a repository.
 - `owner` (string): Repository owner or organization
 - `repo` (string): Repository name
 - `options` (object, optional):
-- `ref` (string): Branch, tag, or commit SHA (uses default branch if not specified)
-- `maxFiles` (number): Maximum files to retrieve (default: 5, max: 10)
+  - `ref` (string): Branch, tag, or commit SHA (uses default branch if not specified)
+  - `maxFiles` (number): Maximum files to retrieve (default: 5, max: 10)
 
-**Returns:**
-`Promise<{repository: string; branch: string; files: Array<{path: string; size: number; content: string}>}>`
+**Returns:** `Promise<{repository: string; branch: string; files: Array<{path: string; size: number; content: string}>}>`
 
 **Documentation File Ranking:**
 
@@ -158,30 +190,48 @@ Files are ranked by importance:
 4. Other files in `docs/` directory
 5. Any `.md` or `.mdx` files
 
-## Configuration
+### Schemas
 
-### Configuration Schema
+#### GitHubConfigSchema
+
+Configuration schema for the GitHub service.
 
 ```typescript
-const GitHubConfigSchema = z.object({
+import { z } from "zod";
+
+export const GitHubConfigSchema = z.object({
   baseUrl: z.string().default("https://api.github.com"),
-  token: z.string().optional(),
+  token: z.string().exactOptional(),
   userAgent: z.string().default("TokenRing/0.2.0"),
 });
 ```
 
-### Configuration Example
+**Fields:**
 
-```yaml
-github:
-  baseUrl: "https://api.github.com"
-  token: "${GITHUB_TOKEN}"
-  userAgent: "TokenRing/0.2.0"
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `baseUrl` | string | `https://api.github.com` | GitHub API base URL |
+| `token` | string \| undefined | undefined | Optional authentication token |
+| `userAgent` | string | `TokenRing/0.2.0` | User-Agent header |
+
+#### GitHubRepoSearchResult
+
+Type definition for repository search results.
+
+```typescript
+export type GitHubRepoSearchResult = {
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  language: string | null;
+  default_branch: string;
+};
 ```
 
-## Usage Examples
+### Usage Examples
 
-### Plugin Installation
+#### Plugin Installation
 
 Install the plugin in your TokenRing application:
 
@@ -200,7 +250,7 @@ await app.install(githubPlugin, {
 });
 ```
 
-### Programmatic Service Usage
+#### Programmatic Service Usage
 
 ```typescript
 import { App } from "@tokenring-ai/app";
@@ -231,11 +281,11 @@ const docs = await github.getRepositoryDocumentation("vercel", "ai", { maxFiles:
 const file = await github.getFile("vercel", "ai", "README.md");
 ```
 
-### AI Tool Usage
+#### AI Tool Usage
 
 The package provides three tools for AI agents:
 
-#### `github_searchRepositories`
+##### github_searchRepositories
 
 **Description:** Search GitHub repositories by keyword
 
@@ -244,9 +294,9 @@ The package provides three tools for AI agents:
 ```typescript
 z.object({
   query: z.string().min(1).describe("GitHub repository search query"),
-  limit: z.number().int().positive().max(50).default(10).optional(),
-  sort: z.enum(["stars", "updated"]).optional(),
-  order: z.enum(["asc", "desc"]).optional()
+  limit: z.number().int().positive().max(50).default(10).exactOptional(),
+  sort: z.enum(["stars", "updated"]).exactOptional(),
+  order: z.enum(["asc", "desc"]).exactOptional()
 })
 ```
 
@@ -261,7 +311,7 @@ Repository search results for "token ring":
 | tokenring-ai/writer | 120 | TypeScript | Token Ring writer |
 ```
 
-#### `github_getRepoDocumentation`
+##### github_getRepoDocumentation
 
 **Description:** Retrieve key documentation files for a GitHub repository
 
@@ -271,32 +321,28 @@ Repository search results for "token ring":
 z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
   repo: z.string().min(1).describe("GitHub repository name"),
-  ref: z.string().optional().describe("Optional branch, tag, or commit"),
-  maxFiles: z.number().int().positive().max(10).default(5).optional()
+  ref: z.string().exactOptional().describe("Optional branch, tag, or commit"),
+  maxFiles: z.number().int().positive().max(10).default(5).exactOptional()
 })
 ```
 
 **Example Output:**
 
-````text
+```text
 ## README.md
 
-```md
 # Vercel AI SDK
 
 The AI SDK provides utilities for building AI applications...
-```
 
 ## docs/getting-started.md
 
-```md
 # Getting Started
 
 Install the AI SDK...
 ```
-````
 
-#### `github_getRepoFile`
+##### github_getRepoFile
 
 **Description:** Retrieve a file from a GitHub repository
 
@@ -307,27 +353,25 @@ z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
   repo: z.string().min(1).describe("GitHub repository name"),
   path: z.string().min(1).describe("Path to the file inside the repository"),
-  ref: z.string().optional().describe("Optional branch, tag, or commit")
+  ref: z.string().exactOptional().describe("Optional branch, tag, or commit")
 })
 ```
 
 **Example Output:**
 
-````text
+```text
 Path: README.md
 SHA: abc123def456
 Size: 2048
 
-```
 # Vercel AI SDK
 
 The AI SDK provides utilities for building AI applications...
 ```
-````
 
-## Agent Commands
+### Agent Commands
 
-### `/github search <query>`
+#### /github search
 
 Search GitHub repositories by keyword.
 
@@ -348,7 +392,7 @@ GitHub repositories for "token ring":
 | tokenring-ai/writer | 120 | TypeScript | Token Ring writer |
 ```
 
-### `/github docs <owner>/<repo>`
+#### /github docs
 
 Retrieve the main documentation files for a GitHub repository.
 
@@ -374,7 +418,7 @@ The AI SDK provides utilities for building AI applications...
 Install the AI SDK...
 ```
 
-### `/github file <owner>/<repo> <path> [ref]`
+#### /github file
 
 Retrieve a file from a GitHub repository.
 
@@ -397,9 +441,9 @@ Size: 2048
 The AI SDK provides utilities for building AI applications...
 ```
 
-## Integration
+### Integration
 
-### Plugin Registration
+#### Plugin Registration
 
 The package exports a plugin that automatically registers:
 
@@ -418,7 +462,7 @@ await app.install(githubPlugin, {
 });
 ```
 
-### Service Registration
+#### Service Registration
 
 You can also register the service directly:
 
@@ -439,12 +483,11 @@ app.waitForService(ChatService, chat => chat.addTools(tools));
 app.waitForService(AgentCommandService, agent => agent.addAgentCommands(commands));
 ```
 
-## State Management
+### State Management
 
-This package is **stateless** and does not require state persistence. All operations are performed against the GitHub
-API with no local state maintenance.
+This package is **stateless** and does not require state persistence. All operations are performed against the GitHub API with no local state maintenance.
 
-## Error Handling
+### Error Handling
 
 The service uses the `HTTPRetriever` base class which provides:
 
@@ -465,7 +508,7 @@ try {
 }
 ```
 
-## Testing
+### Testing
 
 Run tests:
 
@@ -485,6 +528,38 @@ Generate coverage:
 bun test:coverage
 ```
 
-## License
+### Exported Modules
 
-MIT License - see LICENSE file for details.
+#### Main Exports
+
+```typescript
+export { default as GitHubService } from "./GitHubService.ts";
+export { GitHubConfigSchema } from "./schema.ts";
+```
+
+#### Plugin Export
+
+```typescript
+import githubPlugin from "@tokenring-ai/github/plugin";
+```
+
+#### Tools Export
+
+```typescript
+import tools from "@tokenring-ai/github/tools";
+// Exports: [searchRepositories, getRepoDocumentation, getRepoFile]
+```
+
+#### Commands Export
+
+```typescript
+import commands from "@tokenring-ai/github/commands";
+// Exports: [search, docs, file]
+```
+
+### Related Components
+
+- `@tokenring-ai/websearch` - Web search integration
+- `@tokenring-ai/serper` - Serper API integration for web search
+- `@tokenring-ai/agent` - Core agent functionality
+- `@tokenring-ai/chat` - Chat and tool integration
