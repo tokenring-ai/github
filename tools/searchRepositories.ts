@@ -11,7 +11,7 @@ const description = "Search GitHub repositories by keyword";
 
 const inputSchema = z.object({
   query: z.string().min(1).describe("GitHub repository search query"),
-  limit: z.number().int().positive().max(50).default(10).exactOptional(),
+  limit: z.number().int().positive().max(50).default(10),
   sort: z.enum(["stars", "updated"]).exactOptional(),
   order: z.enum(["asc", "desc"]).exactOptional(),
 });

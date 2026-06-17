@@ -11,7 +11,7 @@ const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
   repo: z.string().min(1).describe("GitHub repository name"),
   ref: z.string().exactOptional().describe("Optional branch, tag, or commit"),
-  maxFiles: z.number().int().positive().max(10).default(5).exactOptional(),
+  maxFiles: z.number().int().positive().max(10).default(5),
 });
 
 async function execute({ owner, repo, ref, maxFiles }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {

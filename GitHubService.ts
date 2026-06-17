@@ -50,13 +50,13 @@ const GitHubRepositorySchema = z
     stargazers_count: z.number(),
     language: z.string().nullable(),
   })
-  .passthrough();
+  .loose();
 
 const GitHubRepositorySearchResponseSchema = z
   .object({
     items: z.array(GitHubRepositorySchema).default([]),
   })
-  .passthrough();
+  .loose();
 
 const GitHubContentsResponseSchema = z
   .object({
@@ -68,7 +68,7 @@ const GitHubContentsResponseSchema = z
     encoding: z.string().optional(),
     download_url: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 const GitHubTreeResponseSchema = z
   .object({
@@ -80,11 +80,11 @@ const GitHubTreeResponseSchema = z
             type: z.enum(["blob", "tree"]),
             size: z.number().optional(),
           })
-          .passthrough(),
+          .loose(),
       )
       .optional(),
   })
-  .passthrough();
+  .loose();
 
 export default class GitHubService implements TokenRingService {
   readonly name = "GitHubService";
