@@ -18,7 +18,9 @@ async function execute({ owner, repo, path, ref }: z.output<typeof inputSchema>,
   const github = agent.requireServiceByType(GitHubService);
   const file = await github.getFile(owner, repo, path, ref);
 
-  return `
+  return {
+    message: `**GitHub** Retrieved ${owner}/${repo}/${path}`,
+    result: `
 Path: ${file.path}
 SHA: ${file.sha}
 Size: ${file.size}
@@ -26,7 +28,8 @@ Size: ${file.size}
 \`\`\`
 ${file.content}
 \`\`\`
-  `.trim();
+  `.trim(),
+  };
 }
 
 export default {

@@ -27,14 +27,17 @@ async function execute({ query, limit, sort, order }: z.output<typeof inputSchem
     }),
   );
 
-  return `
+  return {
+    message: `**GitHub** Searched repositories ${query}`,
+    result: `
 Repository search results for "${query}":
 
 ${markdownTable(
   ["Repository", "Stars", "Language", "Description"],
   results.map(repo => [repo.full_name, String(repo.stargazers_count), repo.language ?? "", repo.description ?? ""]),
 )}
-  `.trim();
+  `.trim(),
+  };
 }
 
 export default {

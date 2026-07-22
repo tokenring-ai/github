@@ -21,17 +21,20 @@ async function execute({ owner, repo, ref, maxFiles }: z.output<typeof inputSche
     maxFiles,
   });
 
-  return documentation.files
-    .map(file =>
-      `
+  return {
+    message: `**GitHub** Retrieved documentation for ${owner}/${repo}`,
+    result: documentation.files
+      .map(file =>
+        `
 ## ${file.path}
 
 \`\`\`md
 ${file.content}
 \`\`\`
   `.trim(),
-    )
-    .join("\n\n");
+      )
+      .join("\n\n"),
+  };
 }
 
 export default {
