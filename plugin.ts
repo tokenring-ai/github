@@ -17,10 +17,13 @@ export default {
   displayName: "GitHub Integration",
   version: packageJSON.version,
   description: packageJSON.description,
-  install(app, config) {
-    app.addServices(new GitHubService(config.github));
+  install(app) {
+    app.addServices(new GitHubService());
     app.waitForService(ChatService, chatService => chatService.addTools(...tools));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(commands));
+  },
+  reconfigure(app, config) {
+    app.requireService(GitHubService).reconfigure(config.github);
   },
   configSchema: packageConfigSchema,
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;

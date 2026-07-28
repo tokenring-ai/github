@@ -1,7 +1,7 @@
 import type { TokenRingService } from "@tokenring-ai/app/types";
 import { HTTPRetriever } from "@tokenring-ai/utility/http/HTTPRetriever";
 import { z } from "zod";
-import type { GitHubConfigSchema } from "./schema.ts";
+import { GitHubConfigSchema } from "./schema.ts";
 
 export type GitHubRepoSearchResult = {
   full_name: string;
@@ -86,14 +86,27 @@ const GitHubTreeResponseSchema = z
   })
   .loose();
 
+export type ParsedGitHubConfig = z.output<typeof GitHubConfigSchema>;
+
 export default class GitHubService implements TokenRingService {
   readonly name = "GitHubService";
   description = "Search GitHub repositories and retrieve repository documentation and files";
 
-  private readonly retriever: HTTPRetriever;
+  private options: ParsedGitHubConfig;
+  private retriever: HTTPRetriever;
 
-  constructor(readonly options: z.output<typeof GitHubConfigSchema>) {
-    this.retriever = new HTTPRetriever({
+  constructor(options?: ParsedGitHubConfig) {
+    this.options = options ?? GitHubConfigSchema.parse({});
+    this.retriever = this.createRetriever(this.options);
+  }
+
+  reconfigure(options: ParsedGitHubConfig): void {
+    this.options = options;
+    this.retriever = this.createRetriever(options);
+  }
+
+  private createRetriever(options: ParsedGitHubConfig): HTTPRetriever {
+    return new HTTPRetriever({
       baseUrl: options.baseUrl,
       headers: {
         Accept: "application/vnd.github+json",
