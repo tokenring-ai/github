@@ -17,7 +17,7 @@ const inputSchema = z.object({
 });
 
 async function execute({ query, limit, sort, order }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const github = agent.requireServiceByType(GitHubService);
+  const github = agent.requireService(GitHubService);
   const results = await github.searchRepositories(
     query,
     stripUndefinedKeys({

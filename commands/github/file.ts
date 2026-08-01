@@ -29,11 +29,11 @@ const inputSchema = {
   ],
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({ positionals, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const { repositorySlug, path, ref } = positionals;
+async function execute({ args, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+  const { repositorySlug, path, ref } = args;
 
   const { owner, repo } = parseRepoSlug(repositorySlug);
-  const file = await agent.requireServiceByType(GitHubService).getFile(owner, repo, path, ref);
+  const file = await agent.requireService(GitHubService).getFile(owner, repo, path, ref);
 
   return `
 Path: ${file.path}

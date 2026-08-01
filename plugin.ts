@@ -18,8 +18,8 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app) {
-    app.addServices(new GitHubService());
-    app.waitForService(ChatService, chatService => chatService.addTools(...tools));
+    app.addService(new GitHubService());
+    app.waitForService(ChatService, chatService => chatService.addTools(tools));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(commands));
   },
   reconfigure(app, config) {

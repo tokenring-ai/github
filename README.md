@@ -269,7 +269,7 @@ app.addServices(githubService);
 
 // Use in agent
 const agent = await app.createAgent();
-const github = agent.requireServiceByType(GitHubService);
+const github = agent.requireService(GitHubService);
 
 // Search repositories
 const results = await github.searchRepositories("token ring", { limit: 10 });

@@ -8,7 +8,7 @@ const inputSchema = {
 } as const satisfies AgentCommandInputSchema;
 
 async function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const results = await agent.requireServiceByType(GitHubService).searchRepositories(remainder, { limit: 10 });
+  const results = await agent.requireService(GitHubService).searchRepositories(remainder, { limit: 10 });
   return `
 GitHub repositories for "${remainder}":
 

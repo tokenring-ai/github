@@ -15,7 +15,7 @@ const inputSchema = z.object({
 });
 
 async function execute({ owner, repo, path, ref }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const github = agent.requireServiceByType(GitHubService);
+  const github = agent.requireService(GitHubService);
   const file = await github.getFile(owner, repo, path, ref);
 
   return {

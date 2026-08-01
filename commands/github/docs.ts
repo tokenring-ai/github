@@ -19,9 +19,9 @@ const inputSchema = {
   ],
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({ positionals: { repositorySlug }, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({ args: { repositorySlug }, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const { owner, repo } = parseRepoSlug(repositorySlug);
-  const documentation = await agent.requireServiceByType(GitHubService).getRepositoryDocumentation(owner, repo, { maxFiles: 5 });
+  const documentation = await agent.requireService(GitHubService).getRepositoryDocumentation(owner, repo, { maxFiles: 5 });
   return documentation.files.map(file => `## ${file.path}\n\n${file.content}`).join("\n\n");
 }
 
