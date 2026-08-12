@@ -1,2 +1,80 @@
-export { default as GitHubService } from "./GitHubService.ts";
-export { GitHubConfigSchema } from "./schema.ts";
+export { default as authorizeAccount } from "./authorizeAccount.ts";
+export { formatComments, formatIssueDetail, formatIssueTable, formatLabelTable, summarizeIssue } from "./formatIssue.ts";
+export {
+  formatDiff,
+  formatPRComments,
+  formatPRDetail,
+  formatPRFiles,
+  formatPRReviews,
+  formatPRStatus,
+  formatPRTable,
+  pullRequestState,
+  summarizePullRequest,
+} from "./formatPullRequest.ts";
+export { default as GitHubOAuthCallbackResource } from "./GitHubOAuthCallbackResource.ts";
+export {
+  default as GitHubService,
+  GITHUB_OAUTH_CALLBACK_PATH,
+  type GitHubFile,
+  type GitHubRepoSearchResult,
+  type GitHubRepository,
+} from "./GitHubService.ts";
+export { default as parseRepoSlug } from "./parseRepoSlug.ts";
+export {
+  type GitHubAutoMerge,
+  type GitHubCheckState,
+  type GitHubPRCheck,
+  type GitHubPRComment,
+  type GitHubPRCommentListOptions,
+  type GitHubPRCommentOptions,
+  type GitHubPRCreateOptions,
+  type GitHubPRFileChange,
+  type GitHubPRListOptions,
+  type GitHubPRRef,
+  type GitHubPRReview,
+  type GitHubPRReviewOptions,
+  type GitHubPRReviewState,
+  type GitHubPRSearchOptions,
+  type GitHubPRStatus,
+  type GitHubPRUpdateOptions,
+  type GitHubPullRequest,
+  type GitHubTeam,
+  toGitHubPRConversationComment,
+  toGitHubPRFileChange,
+  toGitHubPRRef,
+  toGitHubPRReview,
+  toGitHubPRReviewComment,
+  toGitHubPullRequest,
+  toGitHubTeam,
+} from "./pullRequestTypes.ts";
+export {
+  DEFAULT_GITHUB_SCOPES,
+  type GitHubAccount,
+  GitHubAccountSchema,
+  type GitHubConfig,
+  GitHubConfigSchema,
+  type GitHubPackageConfig,
+  GitHubPackageConfigSchema,
+  type GitHubStoredToken,
+  GitHubStoredTokenSchema,
+  type ResolvedGitHubAccount,
+  type ResolvedGitHubConfig,
+} from "./schema.ts";
+export {
+  type GitHubIssue,
+  type GitHubIssueComment,
+  type GitHubIssueCreateOptions,
+  type GitHubIssueListOptions,
+  type GitHubIssueSearchOptions,
+  type GitHubIssueUpdateOptions,
+  type GitHubLabel,
+  type GitHubMilestone,
+  type GitHubReactions,
+  type GitHubUser,
+  toGitHubIssue,
+  toGitHubIssueComment,
+  toGitHubLabel,
+  toGitHubMilestone,
+  toGitHubReactions,
+  toGitHubUser,
+} from "./types.ts";

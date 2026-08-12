@@ -1,5 +1,6 @@
 import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import { stripUndefinedKeys } from "@tokenring-ai/utility/object/stripObject";
+import { formatLabelTable } from "../../formatIssue.ts";
 import GitHubService from "../../GitHubService.ts";
 import parseRepoSlug from "../../parseRepoSlug.ts";
 
@@ -22,21 +23,20 @@ const inputSchema = {
 
 async function execute({ args: { repositorySlug, account }, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const { owner, repo } = parseRepoSlug(repositorySlug);
-  const documentation = await agent.requireService(GitHubService).getRepositoryDocumentation(owner, repo, stripUndefinedKeys({ maxFiles: 5, account }));
+  const labels = await agent.requireService(GitHubService).listLabels(owner, repo, stripUndefinedKeys({ account }));
 
-  const files = documentation.files.map(file => `## ${file.path}\n\n${file.content}`).join("\n\n");
-  return `Documentation for **${documentation.repository}** (branch: ${documentation.branch}):\n\n${files}`;
+  return `Labels in **${owner}/${repo}**:\n\n${formatLabelTable(labels)}`;
 }
 
-const help = `Retrieve the main documentation files for a GitHub repository.
+const help = `List the labels defined in a GitHub repository.
 
 ## Example
 
-/github docs vercel/ai`;
+/github labels vercel/ai`;
 
 export default {
-  name: "github docs",
-  description: "Get repository documentation",
+  name: "github labels",
+  description: "List repository labels",
   inputSchema,
   help,
   execute,

@@ -14,9 +14,10 @@ const inputSchema = z.object({
   limit: z.number().int().positive().max(50).default(10),
   sort: z.enum(["stars", "updated"]).exactOptional(),
   order: z.enum(["asc", "desc"]).exactOptional(),
+  account: z.string().exactOptional().describe("Configured GitHub account to search as"),
 });
 
-async function execute({ query, limit, sort, order }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ query, limit, sort, order, account }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const github = agent.requireService(GitHubService);
   const results = await github.searchRepositories(
     query,
@@ -24,6 +25,7 @@ async function execute({ query, limit, sort, order }: z.output<typeof inputSchem
       limit,
       sort,
       order,
+      account,
     }),
   );
 

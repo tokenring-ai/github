@@ -1,14 +1,19 @@
 {
   "name": "@tokenring-ai/github",
   "version": "0.2.0",
-  "description": "Search GitHub repositories and retrieve documentation and files via the GitHub API.",
+  "description": "Connect GitHub accounts and search repositories, documentation, and files via Octokit.",
   "dependencies": {
     "@tokenring-ai/agent": "workspace:*",
     "@tokenring-ai/app": "workspace:*",
     "@tokenring-ai/chat": "workspace:*",
+    "@tokenring-ai/secrets": "workspace:*",
     "@tokenring-ai/utility": "workspace:*",
+    "@tokenring-ai/vault": "workspace:*",
+    "@tokenring-ai/web-host": "workspace:*",
+    "octokit": "^5.0.5",
     "zod": "^4.4.3"
   },
+  "types": "./index.ts",
   "exports": {
     ".": "./index.ts",
     "./*": "./*.ts"

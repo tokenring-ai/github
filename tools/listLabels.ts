@@ -2,36 +2,27 @@ import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { stripUndefinedKeys } from "@tokenring-ai/utility/object/stripObject";
 import { z } from "zod";
+import { formatLabelTable } from "../formatIssue.ts";
 import GitHubService from "../GitHubService.ts";
 
-const name = "github_getRepoFile";
-const displayName = "GitHub/getRepoFile";
-const description = "Retrieve a file from a GitHub repository";
+const name = "github_listLabels";
+const displayName = "GitHub/listLabels";
+const description = "List the labels defined in a GitHub repository";
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
   repo: z.string().min(1).describe("GitHub repository name"),
-  path: z.string().min(1).describe("Path to the file inside the repository"),
-  ref: z.string().exactOptional().describe("Optional branch, tag, or commit"),
+  limit: z.number().int().positive().max(100).default(100),
   account: z.string().exactOptional().describe("Configured GitHub account to read as"),
 });
 
-async function execute({ owner, repo, path, ref, account }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ owner, repo, limit, account }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const github = agent.requireService(GitHubService);
-  const file = await github.getFile(owner, repo, path, ref, stripUndefinedKeys({ account }));
+  const labels = await github.listLabels(owner, repo, stripUndefinedKeys({ perPage: limit, account }));
 
   return {
-    message: `**GitHub** Retrieved ${owner}/${repo}/${path}`,
-    result: `
-Repository: ${owner}/${repo}
-Path: ${file.path}
-SHA: ${file.sha}
-Size: ${file.size}
-
-\`\`\`
-${file.content}
-\`\`\`
-  `.trim(),
+    message: `**GitHub** Listed ${labels.length} label(s) in ${owner}/${repo}`,
+    result: `Labels in ${owner}/${repo}:\n\n${formatLabelTable(labels)}`,
   };
 }
 
