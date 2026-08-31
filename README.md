@@ -20,17 +20,6 @@ The `@tokenring-ai/github` package connects one or more GitHub accounts and expo
 bun add @tokenring-ai/github
 ```
 
-## Dependencies
-
-- `@tokenring-ai/agent` — agent integration and service management
-- `@tokenring-ai/app` — plugin architecture and configuration
-- `@tokenring-ai/chat` — tool registration
-- `@tokenring-ai/secrets` — secret references for the OAuth client and personal access tokens
-- `@tokenring-ai/vault` — encrypted storage for OAuth tokens
-- `@tokenring-ai/web-host` — serves the OAuth callback URL
-- `octokit` — the GitHub SDK
-- `zod` — configuration schema validation
-
 ## Connecting an account
 
 ### OAuth (default)
@@ -46,7 +35,7 @@ github:
 
 Then run:
 
-```
+```text
 /connect github octocat --name=work --scopes=repo,read:org
 ```
 
@@ -59,7 +48,7 @@ Nothing secret is written to the configuration file.
 If no OAuth app is configured, `/connect github` prompts for a personal access token instead. You can
 also pass one directly:
 
-```
+```text
 /connect github --token=ghp_xxx --name=ci
 ```
 
@@ -111,42 +100,43 @@ Every command above accepts `--account=<name>` to pick which account to act as.
 
 ## Tools
 
-| Tool | Description | Writes |
-|------|-------------|--------|
-| `github_searchRepositories` | Search GitHub repositories by keyword | |
-| `github_getRepoDocumentation` | Retrieve key documentation files for a repository | |
-| `github_getRepoFile` | Retrieve a specific file from a repository | |
-| `github_listIssues` | List issues, with state, label, assignee, and date filters | |
-| `github_getIssue` | Get an issue's details, optionally with its comment thread | |
-| `github_searchIssues` | Search issues and pull requests across GitHub | |
-| `github_listLabels` | List a repository's labels | |
-| `github_createIssue` | Open a new issue | ✅ |
-| `github_updateIssue` | Change title, body, state, labels, assignees, or milestone | ✅ |
-| `github_commentIssue` | Comment on an issue or pull request | ✅ |
-| `github_addLabels` | Add labels to an issue | ✅ |
-| `github_removeLabel` | Remove a label from an issue | ✅ |
-| `github_listPRs` | List pull requests, with state and branch filters | |
-| `github_getPR` | Get a pull request's details, optionally with reviews and comments | |
-| `github_searchPRs` | Search pull requests across GitHub | |
-| `github_getPRDiff` | Get the unified diff, optionally narrowed to specific files | |
-| `github_getPRFiles` | List changed files, with per-file line counts and optional hunks | |
-| `github_getPRStatus` | Get CI status: commit statuses and Actions check runs together | |
-| `github_listPRReviews` | List submitted reviews and their approval state | |
-| `github_listPRComments` | List the conversation thread, the inline review comments, or both | |
-| `github_createPR` | Open a new pull request | ✅ |
-| `github_updatePR` | Change title, body, state, base, labels, assignees, or reviewers | ✅ |
-| `github_closePR` | Close a pull request without merging | ✅ |
-| `github_reviewPR` | Approve, request changes, or comment as a review | ✅ |
-| `github_commentPR` | Comment on the thread, or inline on a file and line | ✅ |
-| `github_addPRReviewers` | Request a review from users or teams | ✅ |
+| Tool | Display Name | Description | Writes |
+|------|-------------|-------------|--------|
+| `github_searchRepositories` | GitHub/searchRepositories | Search GitHub repositories by keyword | |
+| `github_getRepoDocumentation` | GitHub/getRepoDocumentation | Retrieve key documentation files for a GitHub repository | |
+| `github_getRepoFile` | GitHub/getRepoFile | Retrieve a file from a GitHub repository | |
+| `github_listIssues` | GitHub/listIssues | List issues in a GitHub repository, with optional state, label, and assignee filters | |
+| `github_getIssue` | GitHub/getIssue | Get a GitHub issue's details, optionally with its comment thread | |
+| `github_searchIssues` | GitHub/searchIssues | Search issues and pull requests across GitHub using the search API. Supports qualifiers such as repo:owner/name, is:open, is:issue, label:bug, and author:username. | |
+| `github_listLabels` | GitHub/listLabels | List the labels defined in a GitHub repository | |
+| `github_createIssue` | GitHub/createIssue | Create a new issue in a GitHub repository | ✅ |
+| `github_updateIssue` | GitHub/updateIssue | Update a GitHub issue's title, body, state, labels, assignees, or milestone | ✅ |
+| `github_commentIssue` | GitHub/commentIssue | Add a comment to a GitHub issue or pull request | ✅ |
+| `github_addLabels` | GitHub/addLabels | Add labels to a GitHub issue, keeping any labels already on it | ✅ |
+| `github_removeLabel` | GitHub/removeLabel | Remove a single label from a GitHub issue | ✅ |
+| `github_listPRs` | GitHub/listPRs | List pull requests in a GitHub repository, with optional state and branch filters | |
+| `github_getPR` | GitHub/getPR | Get a pull request's details, optionally with its reviews and comments | |
+| `github_searchPRs` | GitHub/searchPRs | Search pull requests across GitHub using the search API's query syntax | |
+| `github_getPRDiff` | GitHub/getPRDiff | Get a pull request's unified diff, optionally narrowed to specific files | |
+| `github_getPRFiles` | GitHub/getPRFiles | List the files a pull request changes, with per-file line counts and optional diff hunks | |
+| `github_getPRStatus` | GitHub/getPRStatus | Get the CI status for a pull request's head commit, covering both commit statuses and Actions check runs | |
+| `github_listPRReviews` | GitHub/listPRReviews | List the reviews submitted on a pull request, with their approval state | |
+| `github_listPRComments` | GitHub/listPRComments | List a pull request's comments: the conversation thread, the inline review comments, or both | |
+| `github_createPR` | GitHub/createPR | Open a new pull request in a GitHub repository | ✅ |
+| `github_updatePR` | GitHub/updatePR | Update a pull request's title, body, state, base branch, labels, assignees, or reviewers | ✅ |
+| `github_closePR` | GitHub/closePR | Close a pull request without merging it | ✅ |
+| `github_reviewPR` | GitHub/reviewPR | Submit a review on a pull request: approve, request changes, or comment | ✅ |
+| `github_commentPR` | GitHub/commentPR | Comment on a pull request, either on the conversation thread or inline on a specific file and line | ✅ |
+| `github_addPRReviewers` | GitHub/addPRReviewers | Request a review on a pull request from users or teams | ✅ |
 
 Each tool takes an optional `account` argument.
 
 Tools marked **Writes** go through `ChatService.checkToolApproval` before touching GitHub, so they
 respect the workspace's `autoToolApprovalLevel` and `toolApprovalMode`. Safety levels run from 4
-(label changes, requesting a review) through 5 (creating, updating, commenting) to 6 (opening a pull
-request, submitting a review — an approval can satisfy a branch protection rule). Commands are not
-gated — running one is already an explicit instruction from the user.
+(label changes, requesting a review), through 5 (creating an issue, commenting, updating or closing a
+pull request), to 6 (updating an issue, opening a pull request, submitting a review — an approval can
+satisfy a branch protection rule). Commands are not gated — running one is already an explicit
+instruction from the user.
 
 There is deliberately no merge tool or command. Merging writes to a repository's default branch and
 is the one pull request operation nothing here can undo, so it stays with the GitHub UI or `gh`.
@@ -162,7 +152,7 @@ carries an `isPullRequest` flag either way.
 query syntax, and it spans repositories. Results include pull requests unless the query says
 `is:issue`. The query is passed through untouched, so all GitHub qualifiers work:
 
-```
+```text
 /github issues search repo:vercel/ai is:open label:bug
 /github issues search is:issue author:octocat streaming
 ```
@@ -233,16 +223,42 @@ github:
       token: { source: vault, category: github, key: ci-pat }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `clientId` / `clientSecret` | OAuth app credentials, as a literal or a secret reference. Default to the `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` environment variables. |
-| `clientType` | `oauth-app` (default) or `github-app`. GitHub App user tokens expire and are refreshed automatically. |
-| `userAgent` | User-Agent sent with API requests |
-| `accounts.<name>.login` | GitHub username, used to pre-fill the sign-in page |
-| `accounts.<name>.baseUrl` | REST API base URL; change for GitHub Enterprise |
-| `accounts.<name>.scopes` | OAuth scopes to request (default `repo`, `read:org`, `read:user`) |
-| `accounts.<name>.token` | Personal access token, used instead of the OAuth flow |
-| `defaultAccount` | Account used when a tool or command doesn't name one |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `clientId` | `sourcedValue` | no | `fromEnv("GITHUB_CLIENT_ID")` | GitHub OAuth app client ID |
+| `clientSecret` | `secret` | no | `fromEnv("GITHUB_CLIENT_SECRET")` | GitHub OAuth app client secret |
+| `clientType` | `"oauth-app" \| "github-app"` | no | `"oauth-app"` | Whether the credentials belong to an OAuth App or a GitHub App |
+| `userAgent` | `string` | no | `"TokenRing"` | User-Agent sent with GitHub API requests |
+| `accounts` | `Record<string, GitHubAccount>` | no | `{}` | Connected GitHub accounts, keyed by name |
+| `accounts.<name>.login` | `string` | no | — | GitHub username, used to pre-fill the sign-in page |
+| `accounts.<name>.baseUrl` | `string` | no | `"https://api.github.com"` | GitHub REST API base URL (change for GitHub Enterprise) |
+| `accounts.<name>.scopes` | `string[]` | no | `["repo", "read:org", "read:user"]` | OAuth scopes requested when authenticating this account |
+| `accounts.<name>.token` | `secret` | no | — | Personal access token, used instead of the OAuth sign-in flow |
+| `defaultAccount` | `string` | no | — | Account used when a tool or command doesn't name one |
+
+OAuth app credentials (`clientId`, `clientSecret`) accept a literal string or a secret reference and
+default to the `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` environment variables. `clientType`
+controls whether tokens are refreshed automatically: GitHub App user tokens expire and are refreshed,
+while OAuth App tokens do not expire.
+
+### Schema Metadata
+
+The following `.meta()` annotations on `GitHubConfigSchema` and `GitHubAccountSchema` drive config UI
+integration:
+
+| Field | Metadata |
+|-------|----------|
+| `github` (root) | `label: "GitHub"`, `description: "GitHub OAuth accounts, repository search, and content retrieval settings"` |
+| `clientId` | `description: "GitHub OAuth app client ID"` |
+| `clientSecret` | `description: "GitHub OAuth app client secret"` |
+| `clientType` | `advanced: true`, `description: "Whether the credentials belong to an OAuth App or a GitHub App"` |
+| `userAgent` | `advanced: true`, `description: "User-Agent sent with GitHub API requests"` |
+| `accounts` | `label: "Accounts"`, `description: "Connected GitHub accounts, keyed by name"` |
+| `accounts.<name>.login` | `description: "GitHub username, used to pre-fill the sign-in page"` |
+| `accounts.<name>.baseUrl` | `advanced: true`, `description: "GitHub REST API base URL (change for GitHub Enterprise)"` |
+| `accounts.<name>.scopes` | `description: "OAuth scopes requested when authenticating this account"` |
+| `accounts.<name>.token` | `description: "Personal access token, used instead of the OAuth sign-in flow"` |
+| `defaultAccount` | `description: "Account used when a tool or command doesn't name one"` |
 
 ## Developer Reference
 
@@ -250,43 +266,102 @@ github:
 
 ```typescript
 class GitHubService implements TokenRingService {
+  readonly name = "GitHubService";
+  description = "Search GitHub repositories and retrieve repository documentation and files";
+
   constructor(app: TokenRingApp);
   reconfigure(options: ResolvedGitHubConfig): void;
 
   // Accounts
   getAvailableAccounts(): string[];
   requireAccount(name: string): ResolvedGitHubAccount;
-  getAccountStatus(name: string): { isAuthenticated: boolean; usesPersonalAccessToken: boolean; grantedScopes?: string[]; profile?: ...; account: ... };
-  requireAuthorizedAccount(name: string): ...;
-  resolveAccountName(name?: string): string | undefined;
+  getAccountStatus(accountName: string): {
+    isAuthenticated: boolean;
+    usesPersonalAccessToken: boolean;
+    grantedScopes?: string[];
+    profile?: GitHubStoredToken["profile"];
+    account: ResolvedGitHubAccount;
+  };
+  requireAuthorizedAccount(accountName: string): ReturnType<GitHubService["getAccountStatus"]>;
+  resolveAccountName(accountName?: string): string | undefined;
 
   // OAuth
   hasOAuthClient(): boolean;
-  createAuthorizationUrl(name: string, redirectUri: string, options?: { state?: string; scopes?: string[]; login?: string }): string;
-  beginAuthorization(name: string, redirectUri: string, options?: { timeoutMs?: number }): { authorizationUrl: string; waitForCallback: Promise<string> };
-  completePendingAuthorization(callbackUrl: string): void;   // throws on every failure, and rejects the waiting sign-in
-  exchangeAuthorizationCode(name: string, code: string, redirectUri: string): Promise<...>;
-  revokeAuthorization(name: string): Promise<void>;
+  createAuthorizationUrl(
+    accountName: string,
+    redirectUri: string,
+    options?: { state?: string; scopes?: string[]; login?: string },
+  ): string;
+  beginAuthorization(
+    accountName: string,
+    redirectUri: string,
+    options?: { timeoutMs?: number },
+  ): { authorizationUrl: string; waitForCallback: Promise<string> };
+  completePendingAuthorization(callbackUrl: string): void;
+  exchangeAuthorizationCode(
+    accountName: string,
+    code: string,
+    redirectUri: string,
+  ): Promise<ReturnType<GitHubService["getAccountStatus"]>>;
+  revokeAuthorization(accountName: string): Promise<void>;
 
   // API
-  withOctokit<T>(account: string | undefined, request: { context: string; requiredScopes?: string[] }, operation: (octokit: Octokit) => Promise<T>): Promise<T>;
-  getAuthenticatedUser(name: string): Promise<...>;
-  searchRepositories(query: string, options?: { account?: string; limit?: number; sort?: "stars" | "updated"; order?: "asc" | "desc" }): Promise<GitHubRepoSearchResult[]>;
+  withOctokit<T>(
+    accountName: string | undefined,
+    request: { context: string; requiredScopes?: string[]; statusHints?: Record<number, string> },
+    operation: (octokit: Octokit) => Promise<T>,
+  ): Promise<T>;
+  getAuthenticatedUser(accountName: string): Promise<Octokit["rest"]["users"]["getAuthenticated"]["response"]["data"]>;
+  searchRepositories(
+    query: string,
+    options?: { account?: string; limit?: number; sort?: "stars" | "updated"; order?: "asc" | "desc" },
+  ): Promise<GitHubRepoSearchResult[]>;
   getRepository(owner: string, repo: string, options?: { account?: string }): Promise<GitHubRepository>;
   getFile(owner: string, repo: string, path: string, ref?: string, options?: { account?: string }): Promise<GitHubFile>;
-  getRepositoryDocumentation(owner: string, repo: string, options?: { account?: string; ref?: string; maxFiles?: number }): Promise<...>;
+  getRepositoryDocumentation(
+    owner: string,
+    repo: string,
+    options?: { account?: string; ref?: string; maxFiles?: number },
+  ): Promise<{ repository: string; branch: string; files: Array<{ path: string; size: number; content: string }> }>;
 
   // Issues
   listIssues(owner: string, repo: string, options?: GitHubIssueListOptions): Promise<GitHubIssue[]>;
   getIssue(owner: string, repo: string, issueNumber: number, options?: { account?: string }): Promise<GitHubIssue>;
   createIssue(owner: string, repo: string, options: GitHubIssueCreateOptions): Promise<GitHubIssue>;
   updateIssue(owner: string, repo: string, issueNumber: number, options: GitHubIssueUpdateOptions): Promise<GitHubIssue>;
-  addIssueComment(owner: string, repo: string, issueNumber: number, body: string, options?: { account?: string }): Promise<GitHubIssueComment>;
-  listIssueComments(owner: string, repo: string, issueNumber: number, options?: { account?: string; perPage?: number; page?: number }): Promise<GitHubIssueComment[]>;
+  addIssueComment(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    body: string,
+    options?: { account?: string },
+  ): Promise<GitHubIssueComment>;
+  listIssueComments(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    options?: { account?: string; perPage?: number; page?: number },
+  ): Promise<GitHubIssueComment[]>;
   searchIssues(query: string, options?: GitHubIssueSearchOptions): Promise<GitHubIssue[]>;
-  listLabels(owner: string, repo: string, options?: { account?: string; perPage?: number; page?: number }): Promise<GitHubLabel[]>;
-  addLabels(owner: string, repo: string, issueNumber: number, labels: string[], options?: { account?: string }): Promise<GitHubLabel[]>;
-  removeLabel(owner: string, repo: string, issueNumber: number, label: string, options?: { account?: string }): Promise<GitHubLabel[]>;
+  listLabels(
+    owner: string,
+    repo: string,
+    options?: { account?: string; perPage?: number; page?: number },
+  ): Promise<GitHubLabel[]>;
+  addLabels(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    labels: string[],
+    options?: { account?: string },
+  ): Promise<GitHubLabel[]>;
+  removeLabel(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    label: string,
+    options?: { account?: string },
+  ): Promise<GitHubLabel[]>;
 
   // Pull requests
   listPullRequests(owner: string, repo: string, options?: GitHubPRListOptions): Promise<GitHubPullRequest[]>;
@@ -295,15 +370,53 @@ class GitHubService implements TokenRingService {
   updatePullRequest(owner: string, repo: string, prNumber: number, options: GitHubPRUpdateOptions): Promise<GitHubPullRequest>;
   closePullRequest(owner: string, repo: string, prNumber: number, options?: { account?: string }): Promise<GitHubPullRequest>;
   reviewPullRequest(owner: string, repo: string, prNumber: number, options: GitHubPRReviewOptions): Promise<GitHubPRReview>;
-  commentPullRequest(owner: string, repo: string, prNumber: number, body: string, options?: GitHubPRCommentOptions): Promise<GitHubPRComment>;
-  listPRComments(owner: string, repo: string, prNumber: number, options?: GitHubPRCommentListOptions): Promise<GitHubPRComment[]>;
-  listPRReviews(owner: string, repo: string, prNumber: number, options?: { account?: string; perPage?: number; page?: number }): Promise<GitHubPRReview[]>;
-  getPRDiff(owner: string, repo: string, prNumber: number, options?: { account?: string; paths?: string[]; maxLength?: number }): Promise<string>;
-  getPRFiles(owner: string, repo: string, prNumber: number, options?: { account?: string; perPage?: number; page?: number }): Promise<GitHubPRFileChange[]>;
+  commentPullRequest(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    body: string,
+    options?: GitHubPRCommentOptions,
+  ): Promise<GitHubPRComment>;
+  listPRComments(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    options?: GitHubPRCommentListOptions,
+  ): Promise<GitHubPRComment[]>;
+  listPRReviews(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    options?: { account?: string; perPage?: number; page?: number },
+  ): Promise<GitHubPRReview[]>;
+  getPRDiff(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    options?: { account?: string; paths?: string[]; maxLength?: number },
+  ): Promise<string>;
+  getPRFiles(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    options?: { account?: string; perPage?: number; page?: number },
+  ): Promise<GitHubPRFileChange[]>;
   getPRStatus(owner: string, repo: string, prNumber: number, options?: { account?: string }): Promise<GitHubPRStatus>;
   searchPullRequests(query: string, options?: GitHubPRSearchOptions): Promise<GitHubPullRequest[]>;
-  addPRReviewers(owner: string, repo: string, prNumber: number, reviewers: string[], teamReviewers?: string[], options?: { account?: string }): Promise<GitHubPullRequest>;
-  listRequestedReviewers(owner: string, repo: string, prNumber: number, options?: { account?: string }): Promise<{ users: GitHubUser[]; teams: GitHubTeam[] }>;
+  addPRReviewers(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    reviewers: string[],
+    teamReviewers?: string[],
+    options?: { account?: string },
+  ): Promise<GitHubPullRequest>;
+  listRequestedReviewers(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    options?: { account?: string },
+  ): Promise<{ users: GitHubUser[]; teams: GitHubTeam[] }>;
 }
 ```
 
@@ -399,6 +512,20 @@ each kind of comment goes to, how an update fans out, and approval gating on the
 That file takes around twenty seconds: Octokit paces notification-triggering writes about three
 seconds apart, and several tests exercise them.
 
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `@tokenring-ai/agent` | Agent integration and service management |
+| `@tokenring-ai/app` | Plugin architecture and configuration |
+| `@tokenring-ai/chat` | Tool registration and approval gating |
+| `@tokenring-ai/secrets` | Secret references for the OAuth client and personal access tokens |
+| `@tokenring-ai/utility` | `stripUndefinedKeys`, `KeyedRegistry`, `intelligentTruncate`, `markdownTable` |
+| `@tokenring-ai/vault` | Encrypted storage for OAuth tokens |
+| `@tokenring-ai/web-host` | Serves the OAuth callback URL |
+| `octokit` | The GitHub SDK |
+| `zod` | Configuration schema validation |
+
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see LICENSE file for details.

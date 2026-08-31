@@ -211,7 +211,8 @@ describe("GitHubService", () => {
 
     const service = new GitHubService(app);
     service.reconfigure({ ...BASE_CONFIG, accounts: { work: { baseUrl: "https://api.github.com", scopes: ["repo", "read:org"] } } });
-    app.addServices([vault, service]);
+    app.addService(VaultService, vault);
+    app.addService(GitHubService, service);
 
     const callbackResource = new GitHubOAuthCallbackResource(service);
     const { authorizationUrl, waitForCallback } = service.beginAuthorization("work", REDIRECT_URI);
@@ -264,7 +265,8 @@ describe("GitHubService", () => {
     await vault.setJsonItem("github", "work", { accessToken: "gho_stored", grantedScopes: ["repo"] });
 
     const service = new GitHubService(app);
-    app.addServices([vault, service]);
+    app.addService(VaultService, vault);
+    app.addService(GitHubService, service);
 
     const errors: unknown[] = [];
     app.serviceError = ((_service: unknown, message: unknown) => {
@@ -296,7 +298,8 @@ describe("GitHubService", () => {
     await vault.setJsonItem("github", "work", { accessToken: "gho_stored", grantedScopes: ["repo"] });
 
     const service = new GitHubService(app);
-    app.addServices([vault, service]);
+    app.addService(VaultService, vault);
+    app.addService(GitHubService, service);
 
     const errors: string[] = [];
     app.serviceError = ((_service: unknown, message: unknown) => {

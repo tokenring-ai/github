@@ -16,12 +16,12 @@ export default {
   version: packageJSON.version,
   description: packageJSON.description,
   install(app) {
-    const gitHubService = app.addService(new GitHubService(app));
+    const gitHubService = app.addService(GitHubService, new GitHubService(app));
 
     app.waitForService(ChatService, chatService => chatService.addTools(tools));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(commands));
 
-    app.services.waitForItemByType(WebHostService, webHostService => {
+    app.waitForService(WebHostService, webHostService => {
       webHostService.registerResource("github-oauth-callback", new GitHubOAuthCallbackResource(gitHubService));
     });
   },

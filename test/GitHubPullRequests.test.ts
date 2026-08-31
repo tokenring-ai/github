@@ -630,14 +630,14 @@ describe("GitHub pull requests", () => {
       const app = createTestingApp();
       const service = new GitHubService(app);
       service.reconfigure(BASE_CONFIG);
-      app.addService(service);
+      app.addService(GitHubService, service);
 
       // Spawn before registering ChatService: the testing agent config has no `chat`
       // section, so attaching it would fail. Tools resolve services from the app, not
       // from what got attached to the agent.
       const agent = createTestingAgent(app);
       const chatService = new ChatService(app);
-      app.addService(chatService);
+      app.addService(ChatService, chatService);
 
       return { agent, chatService };
     }
