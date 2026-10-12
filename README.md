@@ -68,6 +68,27 @@ github:
 Unlike a personal access token, an OAuth token obtained through `/connect github` is always stored in
 the vault and never written to the configuration file.
 
+## Dashboard
+
+The plugin ships a **GitHub** dashboard for the web UI at `/github`, built from
+four dock views (`frontend/`):
+
+| View | What it does |
+| --- | --- |
+| `github-navigator` | Repository picker (the workspace's `origin` remote is pre-selected; recent repositories and GitHub search are a click away), account selector, and the issue or pull request list with open/closed/all and text filters. Agent sessions for the dashboard live at the bottom. |
+| `github-item` | One issue or pull request per panel: description and comments rendered as Markdown, a comment composer, label editing, close/reopen, inline title/body/assignee edits. Pull requests add **Files** (per-file unified diffs), **Checks** (commit statuses and check runs), a review dialog (approve / request changes / comment), reviewer requests, and close. There is no merge button, for the same reason there is no merge tool. |
+| `github-issue-create` | New-issue form with labels and assignees. |
+| `github-accounts` | Account status, OAuth **Connect** (opens GitHub; the local callback completes the sign-in) and **Disconnect**. |
+
+**Work with agent** on an item attaches (or creates) an agent of one of the
+configured `agentTypes`, pre-fills its chat composer with a prompt naming the
+item, and docks the chat beside the panel. The agent then reads the item with
+the tools above.
+
+URLs: `/github/:owner/:repo`, `/github/:owner/:repo/issues/:number`,
+`/github/:owner/:repo/pulls/:number`, `/github/:owner/:repo/issues/new`,
+`/github/accounts`.
+
 ## Chat Commands
 
 | Command | Description |
@@ -139,7 +160,10 @@ satisfy a branch protection rule). Commands are not gated — running one is alr
 instruction from the user.
 
 There is deliberately no merge tool or command. Merging writes to a repository's default branch and
-is the one pull request operation nothing here can undo, so it stays with the GitHub UI or `gh`.
+is the one pull request operation nothing here can undo, so agents cannot do it. A person can merge
+(or turn on auto-merge) from the GitHub dashboard's pull request panel, behind a confirmation that
+names the method and branches; the merge is pinned to the head SHA the panel showed, so commits pushed
+after the user looked are refused rather than merged unseen.
 
 ## Issues
 
@@ -235,6 +259,7 @@ github:
 | `accounts.<name>.scopes` | `string[]` | no | `["repo", "read:org", "read:user"]` | OAuth scopes requested when authenticating this account |
 | `accounts.<name>.token` | `secret` | no | — | Personal access token, used instead of the OAuth sign-in flow |
 | `defaultAccount` | `string` | no | — | Account used when a tool or command doesn't name one |
+| `agentTypes` | `string[]` | no | `["code", "plan"]` | Agent types the dashboard's **Work with agent** offers |
 
 OAuth app credentials (`clientId`, `clientSecret`) accept a literal string or a secret reference and
 default to the `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` environment variables. `clientType`
@@ -420,7 +445,27 @@ class GitHubService implements TokenRingService {
 }
 ```
 
-There is no `mergePullRequest`; see the note under [Tools](#tools).
+`mergePullRequest`, `setPullRequestAutoMerge` (GraphQL, since REST has no auto-merge endpoint) and
+`listBranches` exist for the dashboard only; no tool or command calls them (see [Tools](#tools)).
+
+### RPC endpoint
+
+`rpc/schema.ts` and `rpc/github.ts` expose the service to the web UI at
+`/rpc/github`, registered with `RpcService` in `plugin.ts`. Every method
+delegates to `GitHubService` and returns the structured issue and pull request
+objects (the tools format the same objects as Markdown). Writes carry no
+tool-approval gate: they are actions the user takes directly in the UI.
+
+- Status and sign-in: `getStatus` (accounts without their tokens, `hasOAuthClient`, `agentTypes`), `beginAuthorization`, `revokeAuthorization`.
+- Repositories: `getWorkspaceRepository` (parses the workspace's `origin` remote, see `workspaceRepository.ts`), `searchRepositories`, `getRepository`, `listBranches` (head/base pickers of the new pull request form).
+- Issues: `listIssues`, `getIssue` (with comments), `searchIssues`, `listLabels`, `createIssue`, `updateIssue`, `addIssueComment`, `addLabels`, `removeLabel`.
+- Pull requests: `listPullRequests`, `getPullRequest` (with reviews and both comment streams), `searchPullRequests`, `getPRFiles`, `getPRStatus`, `createPullRequest`, `updatePullRequest`, `closePullRequest`, `mergePullRequest` (`merge`/`squash`/`rebase`, optional commit title/message, and the expected head `sha`), `setAutoMerge` (enable with a method, or disable), `reviewPullRequest`, `commentPullRequest`, `addPRReviewers`.
+
+The transport validates every result against the zod schemas in
+`rpc/wire.ts`, which mirror the TypeScript domain types below;
+`wireSchemasMatchDomainTypes` fails to compile if the two drift. The generated
+JSON Schema lives in the monorepo at `schema/rpc/github.json`
+(`bun run schema:rpc`).
 
 ### Issue types
 
@@ -511,6 +556,14 @@ each kind of comment goes to, how an update fans out, and approval gating on the
 
 That file takes around twenty seconds: Octokit paces notification-triggering writes about three
 seconds apart, and several tests exercise them.
+
+`test/GitHubRpc.test.ts` runs the RPC methods against the same mocked `fetch` and parses every
+response with the wire schemas, so a domain type and its zod mirror cannot drift unnoticed.
+`test/workspaceRepository.test.ts` covers remote URL parsing. The three GitHub test files share
+`test/mockGitHub.ts`.
+
+`frontend/views/github.test.tsx` and `frontend/components/PatchView.test.tsx` exercise the
+dashboard views with a mocked RPC layer (`bunfig.toml` preloads the frontend's jsdom setup).
 
 ## Dependencies
 

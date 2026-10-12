@@ -1,0 +1,4 @@
+[test]
+# Frontend view tests under frontend/ need the browser globals and
+# testing-library setup provided by the frontend package.
+preload = ["../../frontend/src/test/jsdom-preload.ts", "../../frontend/src/test/setup.ts"]

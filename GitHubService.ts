@@ -9,6 +9,8 @@ import VaultService from "@tokenring-ai/vault/VaultService";
 import { deepEquals } from "bun";
 import { OAuthApp, Octokit, RequestError } from "octokit";
 import {
+  type GitHubAutoMergeOptions,
+  type GitHubBranch,
   type GitHubCheckState,
   type GitHubPRCheck,
   type GitHubPRComment,
@@ -17,6 +19,8 @@ import {
   type GitHubPRCreateOptions,
   type GitHubPRFileChange,
   type GitHubPRListOptions,
+  type GitHubPRMergeOptions,
+  type GitHubPRMergeResult,
   type GitHubPRReview,
   type GitHubPRReviewOptions,
   type GitHubPRSearchOptions,
@@ -121,6 +125,7 @@ const EMPTY_CONFIG: ResolvedGitHubConfig = {
   clientType: "oauth-app",
   userAgent: "TokenRing",
   accounts: {},
+  agentTypes: [],
 };
 
 export default class GitHubService implements TokenRingService {
@@ -182,6 +187,16 @@ export default class GitHubService implements TokenRingService {
   /** Whether OAuth app credentials are configured, i.e. whether the sign-in flow can run at all. */
   hasOAuthClient(): boolean {
     return Boolean(this.options.clientId && this.options.clientSecret);
+  }
+
+  /** The configured `github.defaultAccount`, if any. */
+  getDefaultAccountName(): string | undefined {
+    return this.options.defaultAccount;
+  }
+
+  /** Agent types the dashboard offers for working on an issue or pull request. */
+  getAgentTypes(): string[] {
+    return [...this.options.agentTypes];
   }
 
   requireAuthorizedAccount(accountName: string) {
@@ -432,6 +447,20 @@ export default class GitHubService implements TokenRingService {
         language: data.language ?? null,
         default_branch: data.default_branch,
       };
+    });
+  }
+
+  /** Branches of a repository, for picking the head and base of a new pull request. */
+  async listBranches(
+    owner: string,
+    repo: string,
+    options: { account?: string | undefined; perPage?: number | undefined; page?: number | undefined } = {},
+  ): Promise<GitHubBranch[]> {
+    const accountName = this.resolveAccountName(options.account);
+
+    return await this.withOctokit(accountName, { context: `GitHub branch listing for ${owner}/${repo}` }, async octokit => {
+      const { data } = await octokit.rest.repos.listBranches(stripUndefinedKeys({ owner, repo, per_page: options.perPage ?? 100, page: options.page }));
+      return data.map(branch => ({ name: branch.name, protected: branch.protected }));
     });
   }
 
@@ -807,6 +836,86 @@ export default class GitHubService implements TokenRingService {
         return toGitHubPullRequest(data);
       },
     );
+  }
+
+  /**
+   * Merges a pull request with the chosen method. Passing `sha` makes GitHub
+   * refuse the merge if the head moved since the caller last looked.
+   */
+  async mergePullRequest(owner: string, repo: string, prNumber: number, options: GitHubPRMergeOptions = {}): Promise<GitHubPRMergeResult> {
+    const accountName = this.resolveAccountName(options.account);
+
+    return await this.withOctokit(
+      accountName,
+      {
+        context: `GitHub pull request merge for ${owner}/${repo}#${prNumber}`,
+        requiredScopes: REPO_WRITE_SCOPES,
+        statusHints: {
+          405: "The pull request is not mergeable: it may have conflicts, failing required checks, missing reviews, or the merge method may be disabled for this repository.",
+          409: "The pull request's head branch changed since it was loaded. Refresh and review the new commits before merging.",
+          422: "GitHub rejected the merge request; check the merge method and commit message.",
+        },
+      },
+      async octokit => {
+        const { data } = await octokit.rest.pulls.merge({
+          ...stripUndefinedKeys({
+            owner,
+            repo,
+            pull_number: prNumber,
+            merge_method: options.method ?? "merge",
+            commit_title: options.commitTitle?.trim() || undefined,
+            commit_message: options.commitMessage?.trim() || undefined,
+            sha: options.sha,
+          }),
+          // 405 (not mergeable) and 409 (head moved) are final answers, but
+          // Octokit's retry plugin would otherwise retry them with backoff.
+          request: { retries: 0 },
+        });
+        return { merged: data.merged, message: data.message, sha: data.sha };
+      },
+    );
+  }
+
+  /**
+   * Turns GitHub's auto-merge on or off. The REST API has no endpoint for it,
+   * so this goes through GraphQL with the pull request's node id. GitHub only
+   * accepts it when the repository allows auto-merge and the pull request is
+   * not yet mergeable (merge it directly otherwise).
+   */
+  async setPullRequestAutoMerge(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    enabled: boolean,
+    options: GitHubAutoMergeOptions = {},
+  ): Promise<GitHubPullRequest> {
+    const accountName = this.resolveAccountName(options.account);
+    const verb = enabled ? "enable" : "disable";
+
+    await this.withOctokit(
+      accountName,
+      { context: `GitHub auto-merge ${verb} for ${owner}/${repo}#${prNumber}`, requiredScopes: REPO_WRITE_SCOPES },
+      async octokit => {
+        const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+        if (enabled) {
+          await octokit.graphql(
+            `mutation($id: ID!, $mergeMethod: PullRequestMergeMethod!) {
+              enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $mergeMethod }) { clientMutationId }
+            }`,
+            { id: data.node_id, mergeMethod: (options.method ?? "merge").toUpperCase() },
+          );
+        } else {
+          await octokit.graphql(
+            `mutation($id: ID!) {
+              disablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId }
+            }`,
+            { id: data.node_id },
+          );
+        }
+      },
+    );
+
+    return await this.getPullRequest(owner, repo, prNumber, stripUndefinedKeys({ account: accountName }));
   }
 
   async reviewPullRequest(owner: string, repo: string, prNumber: number, options: GitHubPRReviewOptions): Promise<GitHubPRReview> {

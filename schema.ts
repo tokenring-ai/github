@@ -67,6 +67,10 @@ export const GitHubConfigSchema = z
       .string()
       .exactOptional()
       .meta({ description: "Account used when a tool or command doesn't name one" } satisfies ConfigFieldMeta),
+    agentTypes: z
+      .array(z.string())
+      .default(["code", "plan"])
+      .meta({ description: "Agent types the GitHub dashboard can hand issues and pull requests to" } satisfies ConfigFieldMeta),
   })
   .meta({ label: "GitHub", description: "GitHub OAuth accounts, repository search, and content retrieval settings" } satisfies ConfigFieldMeta);
 

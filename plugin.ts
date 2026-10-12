@@ -1,12 +1,14 @@
 import { AgentCommandService } from "@tokenring-ai/agent";
 import type { TokenRingPlugin } from "@tokenring-ai/app";
 import { ChatService } from "@tokenring-ai/chat";
+import { RpcService } from "@tokenring-ai/rpc";
 import { resolveSecret } from "@tokenring-ai/secrets/SecretService";
 import WebHostService from "@tokenring-ai/web-host/WebHostService";
 import commands from "./commands.ts";
 import GitHubOAuthCallbackResource from "./GitHubOAuthCallbackResource.ts";
 import GitHubService from "./GitHubService.ts";
 import packageJSON from "./package.json" with { type: "json" };
+import githubRPC from "./rpc/github.ts";
 import { GitHubPackageConfigSchema, type ResolvedGitHubAccount, type ResolvedGitHubConfig } from "./schema.ts";
 import tools from "./tools.ts";
 
@@ -23,6 +25,9 @@ export default {
 
     app.waitForService(WebHostService, webHostService => {
       webHostService.registerResource("github-oauth-callback", new GitHubOAuthCallbackResource(gitHubService));
+    });
+    app.waitForService(RpcService, rpcService => {
+      rpcService.registerEndpoint(githubRPC);
     });
   },
   reconfigure(app, config) {

@@ -6,6 +6,7 @@
     "@tokenring-ai/agent": "workspace:*",
     "@tokenring-ai/app": "workspace:*",
     "@tokenring-ai/chat": "workspace:*",
+    "@tokenring-ai/rpc": "workspace:*",
     "@tokenring-ai/secrets": "workspace:*",
     "@tokenring-ai/utility": "workspace:*",
     "@tokenring-ai/vault": "workspace:*",
@@ -16,6 +17,7 @@
   "types": "./index.ts",
   "exports": {
     ".": "./index.ts",
+    "./frontend/*": "./frontend/*",
     "./*": "./*.ts"
   },
   "license": "MIT",

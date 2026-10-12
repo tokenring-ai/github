@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
 import ChatService from "../../chat/ChatService.ts";
@@ -9,48 +9,16 @@ import addLabelsTool from "../tools/addLabels.ts";
 import createIssueTool from "../tools/createIssue.ts";
 import listIssuesTool from "../tools/listIssues.ts";
 import { toGitHubIssue } from "../types.ts";
+import { mockGitHub } from "./mockGitHub.ts";
 
 const BASE_CONFIG: ResolvedGitHubConfig = {
   clientId: "client-id",
   clientSecret: "client-secret",
   clientType: "oauth-app",
   userAgent: "TokenRing",
+  agentTypes: [],
   accounts: { work: { baseUrl: "https://api.github.com", scopes: ["repo"], token: "ghp_pat" } },
 };
-
-type RecordedRequest = { method: string; url: string; body: unknown };
-
-/** Routes GitHub API calls to canned responses and records what was sent. */
-function mockGitHub(routes: Record<string, unknown>) {
-  const requests: RecordedRequest[] = [];
-
-  const handler = mock(async (input: unknown, init?: unknown) => {
-    const url = typeof input === "string" ? input : String((input as Request).url);
-    const options = (init ?? {}) as { method?: string; body?: string };
-    const method = options.method ?? "GET";
-
-    requests.push({
-      method,
-      url,
-      body: options.body ? JSON.parse(options.body) : undefined,
-    });
-
-    // Longest matching key wins, so `/issues/1/labels` beats `/issues`.
-    const match = Object.keys(routes)
-      .filter(key => url.startsWith(`https://api.github.com${key}`))
-      .sort((a, b) => b.length - a.length)[0];
-
-    if (match === undefined) throw new Error(`Unexpected fetch to ${method} ${url}`);
-
-    return new Response(JSON.stringify(routes[match]), {
-      status: 200,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
-  });
-
-  (globalThis as { fetch: unknown }).fetch = handler;
-  return requests;
-}
 
 function createService() {
   const app = createTestingApp();

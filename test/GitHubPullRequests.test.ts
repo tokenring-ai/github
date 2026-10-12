@@ -11,55 +11,16 @@ import createPRTool from "../tools/createPR.ts";
 import listPRsTool from "../tools/listPRs.ts";
 import reviewPRTool from "../tools/reviewPR.ts";
 import updatePRTool from "../tools/updatePR.ts";
+import { mockGitHub } from "./mockGitHub.ts";
 
 const BASE_CONFIG: ResolvedGitHubConfig = {
   clientId: "client-id",
   clientSecret: "client-secret",
   clientType: "oauth-app",
   userAgent: "TokenRing",
+  agentTypes: [],
   accounts: { work: { baseUrl: "https://api.github.com", scopes: ["repo"], token: "ghp_pat" } },
 };
-
-type RecordedRequest = { method: string; url: string; body: unknown; headers: Record<string, string> };
-
-/**
- * Routes GitHub API calls to canned responses and records what was sent. A string
- * route is served as a diff rather than JSON, which is how GitHub answers a
- * request carrying the diff media type.
- */
-function mockGitHub(routes: Record<string, unknown>) {
-  const requests: RecordedRequest[] = [];
-
-  const handler = mock(async (input: unknown, init?: unknown) => {
-    const url = typeof input === "string" ? input : String((input as Request).url);
-    const options = (init ?? {}) as { method?: string; body?: string; headers?: Record<string, string> };
-    const method = options.method ?? "GET";
-
-    requests.push({
-      method,
-      url,
-      body: options.body ? JSON.parse(options.body) : undefined,
-      headers: options.headers ?? {},
-    });
-
-    // Longest matching key wins, so `/pulls/1/files` beats `/pulls/1`.
-    const match = Object.keys(routes)
-      .filter(key => url.startsWith(`https://api.github.com${key}`))
-      .sort((a, b) => b.length - a.length)[0];
-
-    if (match === undefined) throw new Error(`Unexpected fetch to ${method} ${url}`);
-
-    const payload = routes[match];
-    if (typeof payload === "string") {
-      return new Response(payload, { status: 200, headers: { "content-type": "application/vnd.github.diff; charset=utf-8" } });
-    }
-
-    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
-  });
-
-  (globalThis as { fetch: unknown }).fetch = handler;
-  return requests;
-}
 
 function createService() {
   const app = createTestingApp();

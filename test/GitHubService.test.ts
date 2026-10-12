@@ -14,6 +14,7 @@ const BASE_CONFIG: ResolvedGitHubConfig = {
   clientSecret: "client-secret",
   clientType: "oauth-app",
   userAgent: "TokenRing",
+  agentTypes: [],
   accounts: {},
 };
 

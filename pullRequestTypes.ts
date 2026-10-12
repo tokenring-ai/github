@@ -205,6 +205,34 @@ export type GitHubPRUpdateOptions = {
   teamReviewers?: string[] | undefined;
 };
 
+export type GitHubMergeMethod = "merge" | "squash" | "rebase";
+
+export type GitHubPRMergeOptions = {
+  account?: string | undefined;
+  method?: GitHubMergeMethod | undefined;
+  /** Title of the merge or squash commit; GitHub's default when omitted. */
+  commitTitle?: string | undefined;
+  commitMessage?: string | undefined;
+  /** Head SHA the merge must match, so a push made after the user looked is not merged unseen. */
+  sha?: string | undefined;
+};
+
+export type GitHubPRMergeResult = {
+  merged: boolean;
+  message: string;
+  sha: string;
+};
+
+export type GitHubAutoMergeOptions = {
+  account?: string | undefined;
+  method?: GitHubMergeMethod | undefined;
+};
+
+export type GitHubBranch = {
+  name: string;
+  protected: boolean;
+};
+
 export type GitHubPRReviewOptions = {
   account?: string | undefined;
   event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
