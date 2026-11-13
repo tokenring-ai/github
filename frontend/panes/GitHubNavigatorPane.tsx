@@ -1,5 +1,6 @@
 import type { GitHubPullRequest } from "@tokenring-ai/github/pullRequestTypes";
 import type { GitHubIssue } from "@tokenring-ai/github/types";
+import { useAttachedAgentChat } from "@tokenring-ai/one-frontend/apps/chat/useAttachedAgentChat.ts";
 import AgentSessionList from "@tokenring-ai/one-frontend/components/AgentSessionList.tsx";
 import NavigationSidebarHeader from "@tokenring-ai/one-frontend/components/layout/NavigationSidebarHeader.tsx";
 import AsyncListBody from "@tokenring-ai/one-frontend/components/ui/AsyncListBody.tsx";
@@ -9,20 +10,19 @@ import FilterTabs from "@tokenring-ai/one-frontend/components/ui/FilterTabs.tsx"
 import SearchInput from "@tokenring-ai/one-frontend/components/ui/SearchInput.tsx";
 import StatusBadge from "@tokenring-ai/one-frontend/components/ui/StatusBadge.tsx";
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
-import { usePanel } from "@tokenring-ai/one-frontend/dock/PanelContext.tsx";
-import { useAgentChatPanel } from "@tokenring-ai/one-frontend/dock/useAgentChatPanel.ts";
 import { useAppAgentSession } from "@tokenring-ai/one-frontend/hooks/useAppAgentSession.tsx";
 import { useDebounce } from "@tokenring-ai/one-frontend/hooks/useDebounce.ts";
 import { useSearchFilter } from "@tokenring-ai/one-frontend/hooks/useSearchFilter.ts";
+import { useLayoutApi } from "@tokenring-ai/one-frontend/layout/context.ts";
 import { cn } from "@tokenring-ai/one-frontend/lib/utils.ts";
 import { type GitHubItemState, useGitHubLabels } from "@tokenring-ai/one-frontend/rpc.ts";
 import { Select, TextField } from "@tokenring-ai/one-frontend/ui";
 import { CircleDot, FilePlus, FunnelX, GitPullRequest, GitPullRequestCreate, KeyRound, MessageSquare, RefreshCw } from "lucide-react";
-import { useCallback, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo } from "react";
 import { ISSUE_STATE_BADGES, PR_STATE_BADGES, pullRequestState, timeAgo } from "../components/itemFormat.ts";
 import LabelChip from "../components/LabelChip.tsx";
 import RepoPicker from "../components/RepoPicker.tsx";
+import { GITHUB_ITEM_VIEW_ID } from "../ids.ts";
 import {
   DEFAULT_LIST_QUERY,
   type GitHubListSort,
@@ -34,10 +34,9 @@ import {
   useGitHubPullList,
 } from "../lib/githubQueries.ts";
 import { GITHUB_LIST_LIMIT, useGitHubItemSearch } from "../lib/githubSearch.ts";
-import { useGitHubNavigation } from "../lib/githubShared.tsx";
-import { draftKey, useGitHubAccount, useGitHubDrafts, useGitHubListFilters, useGitHubRepo } from "../lib/githubStore.ts";
+import { adoptRouteRepo, draftKey, useGitHubAccount, useGitHubDrafts, useGitHubListFilters, useGitHubRepo } from "../lib/githubStore.ts";
 import { type GitHubItemKind, kindFromSegment } from "../lib/paths.ts";
-import { GITHUB_DASHBOARD_ID } from "../manifest.ts";
+import { useGitHubLayoutNavigation } from "../lib/useGitHubLayoutNavigation.ts";
 
 const KIND_TABS: { id: GitHubItemKind; label: string }[] = [
   { id: "issue", label: "Issues" },
@@ -107,14 +106,14 @@ function ItemRow({ entry, selected, dirty, onClick }: { entry: ListItem; selecte
   );
 }
 
-/** Agents the GitHub dashboard can attach to; keeps the chat panel docked beside the workspace. */
+/** Agents the GitHub app can attach to; keeps the chat panel docked beside the workspace. */
 function GitHubAgentSessions({ agentTypes }: { agentTypes: string[] }) {
   const { agentId, agents, isLoading, selectAgent, createAgent, terminateAgent, TerminateDialog } = useAppAgentSession({
     appName: "GitHub dashboard",
     storageKey: "github",
     agentTypes,
   });
-  useAgentChatPanel({ agentId });
+  useAttachedAgentChat({ agentId });
 
   return (
     <>
@@ -134,21 +133,26 @@ function GitHubAgentSessions({ agentTypes }: { agentTypes: string[] }) {
 }
 
 /**
- * The GitHub dashboard's navigator: repository and account pickers, the issue
- * or pull request list with state and text filters. Rows open an item panel
- * in the main area; elsewhere (the home dashboard) they navigate.
+ * The GitHub navigator: repository and account pickers, the issue or pull
+ * request list with state and text filters. Rows open an item tab.
  */
-export default function GitHubNavigatorView() {
-  const panel = usePanel();
-  const inDashboard = panel.dashboardId === GITHUB_DASHBOARD_ID;
-  const params = useParams<{ owner?: string; repo?: string; kind?: string; number?: string }>();
-  const selectedKind = kindFromSegment(params.kind);
+export default function GitHubNavigatorPane() {
+  // The URL names the focused tab's repository and item; the list highlights it.
+  const { route } = useLayoutApi();
+  const params = route?.params ?? {};
+  const selectedKind = route?.viewId === GITHUB_ITEM_VIEW_ID ? kindFromSegment(params.kind) : null;
   const selectedNumber = Number(params.number);
+  const routeOwner = params.owner;
+  const routeRepo = params.repo;
+  // The URL is authoritative: a deep link to /github/acme/api/... must show and act on acme/api, not the repository picked last.
+  useEffect(() => {
+    if (routeOwner && routeRepo) adoptRouteRepo(routeOwner, routeRepo);
+  }, [routeOwner, routeRepo]);
 
   const { account, accounts, isAuthenticated, agentTypes, setAccount, isLoading: statusLoading } = useGitHubAccount();
   const { repo, fromWorkspace, workspaceRepo, recent, isLoading: repoLoading } = useGitHubRepo();
   const { kind, setKind, state, setState, label, setLabel, assignee, setAssignee, sort, setSort, clearQuery } = useGitHubListFilters();
-  const { openItem, openNewIssue, openNewPull, openAccounts, selectRepo } = useGitHubNavigation();
+  const { openItem, openNewIssue, openNewPull, openAccounts, selectRepo } = useGitHubLayoutNavigation();
   const drafts = useGitHubDrafts();
   const labels = useGitHubLabels(repo);
 
@@ -239,7 +243,7 @@ export default function GitHubNavigatorView() {
             <li key={`${entry.kind}-${entry.number}`}>
               <ItemRow
                 entry={entry}
-                selected={inDashboard && routeShowsRepo && selectedKind === entry.kind && selectedNumber === entry.number}
+                selected={routeShowsRepo && selectedKind === entry.kind && selectedNumber === entry.number}
                 dirty={drafts.has(draftKey(repo.owner, repo.repo, entry.kind, entry.number))}
                 onClick={() => openItem(entry.kind, entry.number)}
               />
@@ -299,12 +303,7 @@ export default function GitHubNavigatorView() {
           <label htmlFor="github-account" className="text-[10px] uppercase tracking-wider text-muted shrink-0">
             As
           </label>
-          <select
-            id="github-account"
-            value={account ?? ""}
-            onChange={event => setAccount(event.target.value || null)}
-            className="flex-1 min-w-0 bg-input border border-primary rounded-md px-2 py-1 text-xs text-primary focus-accent cursor-pointer"
-          >
+          <Select id="github-account" value={account ?? ""} onChange={value => setAccount(value || null)} className="flex-1 min-w-0">
             <option value="">Default account</option>
             {accounts.map(candidate => (
               <option key={candidate.name} value={candidate.name}>
@@ -312,7 +311,7 @@ export default function GitHubNavigatorView() {
                 {candidate.isAuthenticated ? "" : " · not connected"}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -426,11 +425,9 @@ export default function GitHubNavigatorView() {
         </div>
       )}
 
-      {inDashboard && (
-        <div className="shrink-0 border-t border-primary">
-          <GitHubAgentSessions agentTypes={agentTypes} />
-        </div>
-      )}
+      <div className="shrink-0 border-t border-primary">
+        <GitHubAgentSessions agentTypes={agentTypes} />
+      </div>
     </ViewShell>
   );
 }

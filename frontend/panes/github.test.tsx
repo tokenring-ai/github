@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ViewDefinition, ViewParams } from "@tokenring-ai/one-frontend/dock/types.ts";
-import { createFakeDashboardApi, createFakePanelHandle, type FakeDashboardApi, renderView } from "@tokenring-ai/one-frontend/test/dock.tsx";
+import { defineView } from "@tokenring-ai/one-frontend/layout/define.ts";
+import { createLayoutRegistry } from "@tokenring-ai/one-frontend/layout/registry.ts";
+import { renderLayoutApp } from "@tokenring-ai/one-frontend/test/layout.tsx";
+import { MessageSquare } from "lucide-react";
 import type React from "react";
-import useSWR from "swr";
-import type { GitHubItemParams } from "../app.tsx";
+import useSWR, { SWRConfig } from "swr";
 
 const PassThroughFocusTrap = ({ children }: { children: React.ReactNode }) => children;
 void mock.module("focus-trap-react", () => ({ FocusTrap: PassThroughFocusTrap, default: PassThroughFocusTrap }));
@@ -172,7 +173,9 @@ const setAutoMerge = mock(async (_args: Record<string, unknown>) => ({ pullReque
 
 const swr = <T,>(data: T | undefined, error?: unknown) => ({ data, error, isLoading: false, isValidating: false, mutate: mutateList });
 
+const actualRpc = await import("@tokenring-ai/one-frontend/rpc.ts");
 void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
+  ...actualRpc,
   useGitHubStatus: () => swr({ hasOAuthClient: state.hasOAuthClient, defaultAccount: "work", agentTypes: ["code"], accounts: state.accounts }),
   useGitHubWorkspaceRepository: () => swr({ repository: state.workspaceRepository }),
   useGitHubRepositorySearch: () => swr(undefined),
@@ -239,33 +242,48 @@ void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
   agentRPCClient: { createAgent, deleteAgent },
 }));
 
-const { default: contribution } = await import("../app.tsx");
-const { getPanelBadge, clearPanelBadges } = await import("@tokenring-ai/one-frontend/dock/panelBadges.ts");
+const { GITHUB_APP } = await import("../layout.ts");
+const { default: githubViews } = await import("../views.tsx");
 const { clearGitHubDrafts } = await import("../lib/githubStore.ts");
 
-const ROUTES = ["/github/:owner?/:repo?/:kind?/:number?"];
-const getView = (id: string) => contribution.views.find(view => view.id === id);
-const viewById = (id: string) => getView(id) as ViewDefinition<any>;
-const dashboard = contribution.dashboards[0]!;
-
-function fakeApi(dashboardId = "github"): FakeDashboardApi {
-  return createFakeDashboardApi({ dashboardId, getView });
+function ChatStub() {
+  return <p>chat stub</p>;
 }
 
-function renderGitHubView(viewId: string, params: GitHubItemParams = {}, path = "/github", api = fakeApi()) {
-  const instance = params.number ? `${params.owner}/${params.repo}/${params.kind}/${params.number}` : "new";
-  const panel = createFakePanelHandle({ viewId, dashboardId: api.dashboardId, panelId: `${viewId}:${instance}`, params });
-  return renderView(viewById(viewId), params, { api, panel, path, routes: api.dashboardId === "github" ? ROUTES : ["*"] });
+const chatView = defineView({
+  id: "chat",
+  kind: "agent",
+  title: params => params.agentId ?? "Chat",
+  icon: MessageSquare,
+  route: "agent/:agentId",
+  instanceKey: params => params.agentId ?? "",
+  component: ChatStub,
+});
+
+const registry = createLayoutRegistry({
+  apps: [GITHUB_APP],
+  views: [...githubViews.views, chatView],
+  kinds: [
+    { id: "navigator", label: "Navigators", plural: "navigators" },
+    { id: "agent", label: "Agents", plural: "agent chats" },
+    { id: "github", label: "GitHub", plural: "GitHub tabs" },
+  ],
+});
+
+function Fresh({ children }: { children: React.ReactNode }) {
+  return <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>;
 }
 
-const pathname = () => screen.getByTestId("pathname").textContent;
-const issueParams: GitHubItemParams = { owner: "octo", repo: "repo", kind: "issue", number: 1 };
-const pullParams: GitHubItemParams = { owner: "octo", repo: "repo", kind: "pull", number: 7 };
+const renderApp = (url = "/github") => renderLayoutApp({ registry, url, wrapper: Fresh });
+const tab = (name: string | RegExp) => screen.queryByRole("tab", { name });
+const hasBadge = (label: string) => screen.queryAllByRole("img", { name: label }).length > 0;
 
-describe("GitHub dashboard views", () => {
+const ISSUE_URL = "/github/octo/repo/issues/1";
+const PULL_URL = "/github/octo/repo/pulls/7";
+
+describe("GitHub app", () => {
   beforeEach(() => {
     localStorage.clear();
-    clearPanelBadges();
     clearGitHubDrafts();
     for (const fn of [
       addIssueComment,
@@ -313,10 +331,41 @@ describe("GitHub dashboard views", () => {
     ];
   });
 
+  describe("routes", () => {
+    it("resolves every old URL shape", () => {
+      expect(registry.routes.resolve("/github")).toMatchObject({ app: "github", viewId: "github-start" });
+      expect(registry.routes.resolve("/github/octo/repo")).toMatchObject({ viewId: "github-start", params: { owner: "octo", repo: "repo" } });
+      expect(registry.routes.resolve("/github/accounts")).toMatchObject({ viewId: "github-accounts" });
+      expect(registry.routes.resolve("/github/octo/repo/issues/new")).toMatchObject({ viewId: "github-issue-create", params: { owner: "octo", repo: "repo" } });
+      expect(registry.routes.resolve("/github/octo/repo/pulls/new")).toMatchObject({ viewId: "github-pull-create", params: { owner: "octo", repo: "repo" } });
+      expect(registry.routes.resolve(ISSUE_URL)).toMatchObject({
+        viewId: "github-item",
+        params: { owner: "octo", repo: "repo", kind: "issues", number: "1" },
+      });
+      expect(registry.routes.resolve(PULL_URL)).toMatchObject({ viewId: "github-item", params: { kind: "pulls", number: "7" } });
+      expect(registry.routes.urlFor("github", "github-item", { owner: "octo", repo: "repo", kind: "pulls", number: "7" })).toBe(PULL_URL);
+      expect(registry.routes.urlFor("github", "github-pull-create", { owner: "acme", repo: "api" })).toBe("/github/acme/api/pulls/new");
+    });
+
+    it("makes the route's repository the selected one", async () => {
+      localStorage.setItem("github:repo", JSON.stringify("octo/repo"));
+      renderApp("/github/acme/api/issues/new");
+
+      await waitFor(() => expect(JSON.parse(localStorage.getItem("github:repo") ?? "null")).toBe("acme/api"));
+      expect(JSON.parse(localStorage.getItem("github:recent-repos") ?? "[]")).toEqual(["acme/api"]);
+      expect(tab(/New issue · api/)).toBeInTheDocument();
+    });
+
+    it("shows the landing content for a URL that is not an item", async () => {
+      renderApp("/github/octo/repo/pulls/x");
+      expect(await screen.findByText("Select an issue or pull request")).toBeInTheDocument();
+    });
+  });
+
   describe("navigator", () => {
     it("pre-selects the workspace repository and lists its open issues", async () => {
       const user = userEvent.setup();
-      const { api } = renderGitHubView("github-navigator");
+      const app = renderApp();
 
       expect(await screen.findByRole("button", { name: "Select repository" })).toHaveTextContent("octo/repo");
       expect(screen.getByText("Crash on startup")).toBeInTheDocument();
@@ -324,13 +373,15 @@ describe("GitHub dashboard views", () => {
       expect(screen.getByText("1 issues")).toBeInTheDocument();
 
       await user.click(screen.getByText("Crash on startup"));
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "github-item", params: { owner: "octo", repo: "repo", kind: "issue", number: 1 } })]);
-      expect(pathname()).toBe("/github/octo/repo/issues/1");
+      expect(app.location().pathname).toBe(ISSUE_URL);
+      await waitFor(() => expect(tab(/#1 Crash on startup/)).toBeInTheDocument());
+      // The landing tab has done its job.
+      expect(tab("Select an issue")).not.toBeInTheDocument();
     });
 
     it("filters by state and by text, and switches to pull requests", async () => {
       const user = userEvent.setup();
-      const { api } = renderGitHubView("github-navigator");
+      const app = renderApp();
 
       await user.click(await screen.findByRole("radio", { name: "Closed" }));
       expect(screen.getByText("Docs are outdated")).toBeInTheDocument();
@@ -345,13 +396,12 @@ describe("GitHub dashboard views", () => {
       await user.click(screen.getByRole("button", { name: /Pull requests/ }));
       expect(await screen.findByText("Add feature flag")).toBeInTheDocument();
       await user.click(screen.getByText("Add feature flag"));
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-item", params: { owner: "octo", repo: "repo", kind: "pull", number: 7 } }));
-      expect(pathname()).toBe("/github/octo/repo/pulls/7");
+      expect(app.location().pathname).toBe(PULL_URL);
     });
 
     it("filters issues by label, assignee and sort on the server", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-navigator");
+      renderApp();
       expect(await screen.findByText("Crash on startup")).toBeInTheDocument();
 
       await user.selectOptions(screen.getByLabelText("Label filter"), "docs");
@@ -375,112 +425,92 @@ describe("GitHub dashboard views", () => {
 
     it("opens the new pull request form from the header", async () => {
       const user = userEvent.setup();
-      const { api } = renderGitHubView("github-navigator");
+      const app = renderApp();
       await user.click(await screen.findByRole("button", { name: "New pull request" }));
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-pull-create", params: { owner: "octo", repo: "repo" } }));
-      expect(pathname()).toBe("/github/octo/repo/pulls/new");
+      expect(app.location().pathname).toBe("/github/octo/repo/pulls/new");
+      expect(await screen.findByRole("button", { name: /Open pull request/ })).toBeInTheDocument();
     });
 
     it("opens the create form and the accounts view from the header", async () => {
       const user = userEvent.setup();
-      const { api } = renderGitHubView("github-navigator");
+      const app = renderApp();
 
-      await user.click(await screen.findByRole("button", { name: "New issue" }));
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-issue-create" }));
-      expect(pathname()).toBe("/github/octo/repo/issues/new");
+      await user.click((await screen.findAllByRole("button", { name: "New issue" }))[0]!);
+      expect(app.location().pathname).toBe("/github/octo/repo/issues/new");
+      await waitFor(() => expect(tab(/New issue · repo/)).toBeInTheDocument());
 
       await user.click(screen.getByRole("button", { name: "GitHub accounts" }));
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-accounts" }));
-      expect(pathname()).toBe("/github/accounts");
+      expect(app.location().pathname).toBe("/github/accounts");
+      await waitFor(() => expect(tab("GitHub accounts")).toBeInTheDocument());
     });
 
     it("switching repositories closes the other repository's panels and remembers the choice", async () => {
       const user = userEvent.setup();
       localStorage.setItem("github:recent-repos", JSON.stringify(["acme/widgets"]));
-      const api = fakeApi();
-      api.panels.push({
-        panelId: "github-item:octo/repo/issue/1",
-        viewId: "github-item",
-        params: { owner: "octo", repo: "repo", kind: "issue", number: 1 },
-        title: "#1",
-      });
-      renderGitHubView("github-navigator", {}, "/github/octo/repo/issues/1", api);
+      const app = renderApp(ISSUE_URL);
+      await waitFor(() => expect(tab(/#1 Crash on startup/)).toBeInTheDocument());
 
       await user.click(await screen.findByRole("button", { name: "Select repository" }));
       await user.click(screen.getByRole("menuitem", { name: /acme\/widgets/ }));
 
-      expect(api.closed).toEqual(["github-item:octo/repo/issue/1"]);
+      await waitFor(() => expect(tab(/#1 Crash on startup/)).not.toBeInTheDocument());
       expect(JSON.parse(localStorage.getItem("github:repo") ?? "null")).toBe("acme/widgets");
-      expect(pathname()).toBe("/github/acme/widgets");
+      expect(app.location().pathname).toBe("/github/acme/widgets");
       expect(screen.getByRole("button", { name: "Select repository" })).toHaveTextContent("acme/widgets");
     });
 
     it("opens a typed owner/repo slug", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-navigator");
+      const app = renderApp();
 
       await user.click(await screen.findByRole("button", { name: "Select repository" }));
       await user.type(screen.getByLabelText("Repository slug or search"), "foo/bar{Enter}");
       expect(JSON.parse(localStorage.getItem("github:repo") ?? "null")).toBe("foo/bar");
-      expect(pathname()).toBe("/github/foo/bar");
+      expect(app.location().pathname).toBe("/github/foo/bar");
     });
 
-    it("lists agents on the GitHub dashboard and docks a chat for the attached one", async () => {
+    it("lists agents and docks a chat for the attached one", async () => {
       state.agents = [codeAgent];
-      const { api } = renderGitHubView("github-navigator");
+      renderApp();
 
       expect(await screen.findByText("Coding Agent")).toBeInTheDocument();
-      await waitFor(() => expect(api.opened.some(open => open.viewId === "chat" && open.params.agentId === "agent-1")).toBe(true));
-    });
-
-    it("only navigates when shown outside the GitHub dashboard", async () => {
-      const user = userEvent.setup();
-      state.agents = [codeAgent];
-      const api = fakeApi("home");
-      renderGitHubView("github-navigator", {}, "/", api);
-
-      await user.click(await screen.findByText("Crash on startup"));
-      expect(api.opened).toHaveLength(0);
-      expect(pathname()).toBe("/github/octo/repo/issues/1");
-      expect(screen.queryByText("GitHub agents")).not.toBeInTheDocument();
-    });
-
-    it("highlights the routed item only when the route names the listed repository", async () => {
-      localStorage.setItem("github:repo", JSON.stringify("octo/repo"));
-      renderGitHubView("github-navigator", {}, "/github/acme/api/issues/1");
-      const row = await screen.findByTestId("github-row-issue-1");
-      expect(row).not.toHaveAttribute("aria-current");
+      await waitFor(() => expect(tab(/agent-1/)).toBeInTheDocument());
     });
 
     it("highlights the routed item in its own repository", async () => {
-      renderGitHubView("github-navigator", {}, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
       expect(await screen.findByTestId("github-row-issue-1")).toHaveAttribute("aria-current", "true");
+    });
+
+    it("does not highlight another repository's item of the same number", async () => {
+      renderApp("/github/octo/repo");
+      expect(await screen.findByTestId("github-row-issue-1")).not.toHaveAttribute("aria-current");
     });
 
     it("still browses anonymously when no account is configured", async () => {
       state.accounts = [];
-      renderGitHubView("github-navigator");
+      renderApp();
       expect(await screen.findByText(/No GitHub account configured/)).toBeInTheDocument();
       expect(screen.getByText("Crash on startup")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "New issue" })).toBeDisabled();
+      expect(screen.getAllByRole("button", { name: "New issue" })[0]).toBeDisabled();
     });
 
     it("explains a disabled New issue when the account is not signed in", async () => {
       state.accounts = [{ ...state.accounts[0]!, isAuthenticated: false }];
-      const { api } = renderGitHubView("github-navigator");
-      const button = await screen.findByRole("button", { name: "New issue" });
+      const app = renderApp();
+      const button = (await screen.findAllByRole("button", { name: "New issue" }))[0]!;
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute("title", expect.stringContaining("Sign in"));
 
       await userEvent.setup().click(screen.getByRole("button", { name: "Sign in →" }));
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-accounts" }));
+      expect(app.location().pathname).toBe("/github/accounts");
     });
 
     it("searches GitHub when the filter is typed over a capped list", async () => {
       const user = userEvent.setup();
       state.issues = Array.from({ length: 100 }, (_, index) => ({ ...issueOne, number: 1000 + index, title: `Bulk issue ${index}` }));
       searchIssues.mockImplementationOnce(async () => ({ issues: [{ ...issueOne, number: 4242, title: "Zebra stripes render wrong" }] }));
-      renderGitHubView("github-navigator");
+      renderApp();
 
       expect(await screen.findByText(/first 100; filter to search all/)).toBeInTheDocument();
       await user.type(screen.getByLabelText("Filter issues"), "zebra");
@@ -492,7 +522,7 @@ describe("GitHub dashboard views", () => {
 
     it("filters a complete list locally without searching GitHub", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-navigator");
+      renderApp();
       await user.type(await screen.findByLabelText("Filter issues"), "crash");
       expect(screen.getByText("Crash on startup")).toBeInTheDocument();
       await new Promise(resolve => setTimeout(resolve, 350));
@@ -500,38 +530,39 @@ describe("GitHub dashboard views", () => {
     });
   });
 
-  describe("item panel", () => {
-    it("shows the placeholder until an item is opened", async () => {
+  describe("item tab", () => {
+    it("shows the landing tab until an item is opened", async () => {
       const user = userEvent.setup();
-      const { api, panel } = renderGitHubView("github-item");
+      const app = renderApp();
 
       expect(await screen.findByText("Select an issue or pull request")).toBeInTheDocument();
-      await waitFor(() => expect(panel.title).toBe("Select an issue"));
+      expect(tab("Select an issue")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: /New issue/ }));
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "github-issue-create" })]);
+      // The landing tab and the navigator header both offer it; the last one is the landing tab's.
+      await user.click(screen.getAllByRole("button", { name: /New issue/ }).at(-1)!);
+      expect(app.location().pathname).toBe("/github/octo/repo/issues/new");
     });
 
     it("renders an issue with its comments, names its tab and posts a comment", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       expect(await screen.findByText("crashes")).toBeInTheDocument();
       expect(screen.getByText("Same here")).toBeInTheDocument();
-      await waitFor(() => expect(panel.title).toBe("#1 Crash on startup"));
+      await waitFor(() => expect(tab(/#1 Crash on startup/)).toBeInTheDocument());
 
       await user.type(screen.getByLabelText("Comment"), "On it");
-      await waitFor(() => expect(getPanelBadge(panel.panelId)?.title).toBe("Unsent comment"));
+      await waitFor(() => expect(hasBadge("Unsent comment")).toBe(true));
 
       await user.click(screen.getByRole("button", { name: /^Comment$/ }));
       await waitFor(() => expect(addIssueComment).toHaveBeenCalledWith({ owner: "octo", repo: "repo", issueNumber: 1, body: "On it" }));
-      await waitFor(() => expect(getPanelBadge(panel.panelId)).toBeNull());
+      await waitFor(() => expect(hasBadge("Unsent comment")).toBe(false));
       expect(mutateList).toHaveBeenCalled();
     });
 
     it("closes and relabels an issue", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       await user.click(await screen.findByRole("button", { name: /Close issue/ }));
       await user.click(screen.getByRole("menuitem", { name: "Close as completed" }));
@@ -548,7 +579,7 @@ describe("GitHub dashboard views", () => {
 
     it("asks before closing an issue and can close it as not planned", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       await user.click(await screen.findByRole("button", { name: /Close issue/ }));
       await user.click(screen.getByRole("menuitem", { name: "Close as not planned" }));
@@ -566,7 +597,7 @@ describe("GitHub dashboard views", () => {
 
     it("says when only the first page of comments is shown", async () => {
       state.issues = [{ ...issueOne, comments: 250 }, issueTwo];
-      renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       expect(await screen.findByText("First 1 of 250 comments")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Read the rest on GitHub/ })).toHaveAttribute("href", issueOne.html_url);
@@ -574,7 +605,7 @@ describe("GitHub dashboard views", () => {
 
     it("saves edited title, body and assignees", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       await user.click(await screen.findByRole("button", { name: "Edit" }));
       const title = screen.getByLabelText("Title");
@@ -589,31 +620,31 @@ describe("GitHub dashboard views", () => {
 
     it("hands an issue to a new agent and opens its chat with a prefilled prompt", async () => {
       const user = userEvent.setup();
-      const { api } = renderGitHubView("github-item", issueParams, "/github/octo/repo/issues/1");
+      renderApp(ISSUE_URL);
 
       await user.click(await screen.findByRole("button", { name: /Work with agent/ }));
       await waitFor(() => expect(createAgent).toHaveBeenCalledWith({ agentType: "code", headless: false }));
-      await waitFor(() => expect(api.opened).toEqual([expect.objectContaining({ viewId: "chat", params: { agentId: "agent-new" } })]));
+      await waitFor(() => expect(tab(/agent-new/)).toBeInTheDocument());
       const inputs = JSON.parse(localStorage.getItem("tokenring-chat-inputs") ?? "{}") as Record<string, string>;
       expect(inputs["agent-new"]).toContain("octo/repo#1");
       expect(inputs["agent-new"]).toContain("Crash on startup");
     });
 
-    it("offers to close the panel when the issue is gone", async () => {
+    it("offers to close the tab when the issue is gone", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-item", { ...issueParams, number: 99 }, "/github/octo/repo/issues/99");
+      renderApp("/github/octo/repo/issues/99");
 
       expect(await screen.findByText("Issue #99 could not be loaded")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Close panel" }));
-      expect(panel.closed).toBe(true);
+      await waitFor(() => expect(tab(/Issue #99/)).not.toBeInTheDocument());
     });
 
     it("renders a pull request with files and checks, and submits a review", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
 
       expect(await screen.findByText("Adds the flag.")).toBeInTheDocument();
-      await waitFor(() => expect(panel.title).toBe("#7 Add feature flag"));
+      await waitFor(() => expect(tab("#7 Add feature flag")).toBeInTheDocument());
       expect(screen.getByText("octo:feature")).toBeInTheDocument();
       // mergeable_state is shown in words, not GitHub's code.
       expect(within(screen.getByRole("region", { name: "Merge" })).getByText("ready to merge")).toBeInTheDocument();
@@ -636,7 +667,7 @@ describe("GitHub dashboard views", () => {
 
     it("closes a pull request and requests reviewers", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
 
       await user.click(await screen.findByRole("button", { name: "Request reviewers" }));
       await user.type(screen.getByLabelText("Reviewers"), "hubot, @monalisa{Enter}");
@@ -653,7 +684,7 @@ describe("GitHub dashboard views", () => {
   describe("pull request actions", () => {
     it("merges with the chosen method after confirming, pinned to the head it showed", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
 
       const merge = await screen.findByRole("region", { name: "Merge" });
       await user.selectOptions(within(merge).getByLabelText("Merge method"), "squash");
@@ -676,13 +707,13 @@ describe("GitHub dashboard views", () => {
         { ...pullSeven, mergeable_state: "blocked" },
         { ...pullSeven, number: 8, mergeable_state: "dirty" },
       ];
-      const { unmount } = renderGitHubView("github-item", { ...pullParams, number: 8 }, "/github/octo/repo/pulls/8");
+      const { unmount } = renderApp("/github/octo/repo/pulls/8");
       const conflicted = await screen.findByRole("region", { name: "Merge" });
       expect(within(conflicted).getByText("has merge conflicts")).toBeInTheDocument();
       expect(within(conflicted).getByRole("button", { name: "Merge" })).toBeDisabled();
       unmount();
 
-      renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
       const blocked = await screen.findByRole("region", { name: "Merge" });
       await user.click(within(blocked).getByRole("button", { name: "Enable auto-merge" }));
       await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Enable auto-merge" }));
@@ -698,7 +729,7 @@ describe("GitHub dashboard views", () => {
           auto_merge: { enabled_by: octocat, merge_method: "squash", commit_title: "", commit_message: "" },
         } as typeof pullSeven,
       ];
-      renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
 
       expect(await screen.findByText("Auto-merge (squash) enabled by octocat")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Disable auto-merge" }));
@@ -715,7 +746,7 @@ describe("GitHub dashboard views", () => {
           requested_teams: [{ id: 1, name: "Core", slug: "core", description: null, html_url: "https://github.com/orgs/octo/teams/core" }],
         } as typeof pullSeven,
       ];
-      const { panel } = renderGitHubView("github-item", pullParams, "/github/octo/repo/pulls/7");
+      renderApp(PULL_URL);
 
       const reviewers = await screen.findByLabelText("Requested reviewers");
       expect(reviewers).toHaveTextContent("hubot");
@@ -725,7 +756,7 @@ describe("GitHub dashboard views", () => {
       const title = screen.getByLabelText("Pull request title");
       await user.clear(title);
       await user.type(title, "Add feature flags");
-      await waitFor(() => expect(getPanelBadge(panel.panelId)).toEqual({ tone: "warning", title: "Unsaved edits" }));
+      await waitFor(() => expect(hasBadge("Unsaved edits")).toBe(true));
       await user.type(screen.getByLabelText("Pull request description"), " Also docs.");
       await user.click(screen.getByRole("button", { name: "Save" }));
       await waitFor(() =>
@@ -747,11 +778,11 @@ describe("GitHub dashboard views", () => {
   describe("create form", () => {
     it("creates an issue, then closes itself and opens the new issue", async () => {
       const user = userEvent.setup();
-      const { api, panel } = renderGitHubView("github-issue-create", {}, "/github/octo/repo/issues/new");
+      const app = renderApp("/github/octo/repo/issues/new");
 
       await user.type(await screen.findByLabelText("Title"), "Add dark mode");
       await user.type(screen.getByLabelText(/Description/), "Please.");
-      await user.click(screen.getByRole("button", { name: /bug/ }));
+      await user.click(within(screen.getByRole("group", { name: "Labels" })).getByRole("button", { name: /bug/ }));
       await user.type(screen.getByLabelText(/Assignees/), "octocat");
       await user.click(screen.getByRole("button", { name: /Create issue/ }));
 
@@ -764,47 +795,47 @@ describe("GitHub dashboard views", () => {
         labels: ["bug"],
         assignees: ["octocat"],
       });
-      await waitFor(() => expect(panel.closed).toBe(true));
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "github-item", params: { owner: "octo", repo: "repo", kind: "issue", number: 3 } })]);
-      expect(pathname()).toBe("/github/octo/repo/issues/3");
+      await waitFor(() => expect(tab(/New issue · repo/)).not.toBeInTheDocument());
+      await waitFor(() => expect(app.location().pathname).toBe("/github/octo/repo/issues/3"));
+      expect(await screen.findByRole("tab", { name: /#3|Issue #3/ })).toBeInTheDocument();
     });
   });
 
   describe("create form discard", () => {
     it("asks before Discard throws away a draft", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-issue-create", { owner: "acme", repo: "api" }, "/github/acme/api/issues/new");
+      renderApp("/github/acme/api/issues/new");
       await user.type(await screen.findByLabelText("Title"), "Half written");
 
       await user.click(screen.getByRole("button", { name: "Discard" }));
       await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep draft" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(panel.closed).toBe(false);
+      expect(tab(/New issue · api/)).toBeInTheDocument();
       expect(screen.getByLabelText("Title")).toHaveValue("Half written");
 
       await user.click(screen.getByRole("button", { name: "Discard" }));
       await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard draft" }));
-      await waitFor(() => expect(panel.closed).toBe(true));
+      await waitFor(() => expect(tab(/New issue · api/)).not.toBeInTheDocument());
       expect(JSON.parse(localStorage.getItem("github:new-issue:acme/api") ?? "{}")).toMatchObject({ title: "" });
     });
 
     it("discards an empty form without asking", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-issue-create", { owner: "acme", repo: "api" }, "/github/acme/api/issues/new");
+      renderApp("/github/acme/api/issues/new");
       await user.click(await screen.findByRole("button", { name: "Discard" }));
-      expect(panel.closed).toBe(true);
+      await waitFor(() => expect(tab(/New issue · api/)).not.toBeInTheDocument());
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 
   describe("create form deep links", () => {
-    it("files into the repository named by its params, not the saved selection", async () => {
+    it("files into the repository named by its URL, not the saved selection", async () => {
       const user = userEvent.setup();
       localStorage.setItem("github:repo", JSON.stringify("octo/repo"));
-      renderGitHubView("github-issue-create", { owner: "acme", repo: "api" }, "/github/acme/api/issues/new");
+      renderApp("/github/acme/api/issues/new");
 
-      expect(await screen.findByText("acme/api")).toBeInTheDocument();
-      await user.type(screen.getByLabelText("Title"), "Deep linked");
+      expect((await screen.findAllByText("acme/api")).length).toBeGreaterThan(0);
+      await user.type(await screen.findByLabelText("Title"), "Deep linked");
       await user.click(screen.getByRole("button", { name: /Create issue/ }));
 
       await waitFor(() => expect(createIssue).toHaveBeenCalled());
@@ -813,18 +844,18 @@ describe("GitHub dashboard views", () => {
 
     it("keeps a draft per repository and badges the tab while it is dirty", async () => {
       const user = userEvent.setup();
-      const first = renderGitHubView("github-issue-create", { owner: "acme", repo: "api" }, "/github/acme/api/issues/new");
+      const first = renderApp("/github/acme/api/issues/new");
       await user.type(await screen.findByLabelText("Title"), "Half written");
-      await waitFor(() => expect(getPanelBadge(first.panel.panelId)).toEqual({ tone: "warning", title: "Unsaved issue draft" }));
+      await waitFor(() => expect(hasBadge("Unsaved issue draft")).toBe(true));
       expect(JSON.parse(localStorage.getItem("github:new-issue:acme/api") ?? "{}")).toMatchObject({ title: "Half written" });
       first.unmount();
 
-      const second = renderGitHubView("github-issue-create", { owner: "octo", repo: "repo" }, "/github/octo/repo/issues/new");
+      const second = renderApp("/github/octo/repo/issues/new");
       expect(await screen.findByLabelText("Title")).toHaveValue("");
-      expect(getPanelBadge(second.panel.panelId)).toBeNull();
+      expect(hasBadge("Unsaved issue draft")).toBe(false);
       second.unmount();
 
-      renderGitHubView("github-issue-create", { owner: "acme", repo: "api" }, "/github/acme/api/issues/new");
+      renderApp("/github/acme/api/issues/new");
       expect(await screen.findByLabelText("Title")).toHaveValue("Half written");
     });
   });
@@ -832,7 +863,7 @@ describe("GitHub dashboard views", () => {
   describe("new pull request form", () => {
     it("opens a draft pull request from the picked branches, then opens it", async () => {
       const user = userEvent.setup();
-      const { api, panel } = renderGitHubView("github-pull-create", { owner: "octo", repo: "repo" }, "/github/octo/repo/pulls/new");
+      const app = renderApp("/github/octo/repo/pulls/new");
 
       // The base defaults to the repository's default branch.
       await waitFor(() => expect(screen.getByLabelText("Base (merge into)")).toHaveValue("main"));
@@ -841,7 +872,7 @@ describe("GitHub dashboard views", () => {
       await user.selectOptions(screen.getByLabelText("Head (merge from)"), "feature");
       await user.type(screen.getByLabelText("Title"), "Add feature");
       await user.type(screen.getByLabelText(/Description/), "Body text");
-      await waitFor(() => expect(getPanelBadge(panel.panelId)).toEqual({ tone: "warning", title: "Unsaved pull request draft" }));
+      await waitFor(() => expect(hasBadge("Unsaved pull request draft")).toBe(true));
       await user.click(screen.getByLabelText(/Open as a draft/));
       await user.click(screen.getByRole("button", { name: /Open draft pull request/ }));
 
@@ -855,25 +886,25 @@ describe("GitHub dashboard views", () => {
         body: "Body text",
         draft: true,
       });
-      await waitFor(() => expect(panel.closed).toBe(true));
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "github-item", params: { owner: "octo", repo: "repo", kind: "pull", number: 8 } })]);
+      await waitFor(() => expect(tab(/New PR · repo/)).not.toBeInTheDocument());
+      await waitFor(() => expect(app.location().pathname).toBe("/github/octo/repo/pulls/8"));
       expect(JSON.parse(localStorage.getItem("github:new-pull:octo/repo") ?? "{}")).toMatchObject({ title: "", head: "" });
     });
 
     it("asks before discarding a draft and lets branch names be typed", async () => {
       const user = userEvent.setup();
-      const { panel } = renderGitHubView("github-pull-create", { owner: "acme", repo: "api" }, "/github/acme/api/pulls/new");
+      renderApp("/github/acme/api/pulls/new");
 
       await user.click(await screen.findByLabelText(/Type branch names/));
       await user.type(screen.getByLabelText("Head (merge from)"), "fork:topic");
       await user.click(screen.getByRole("button", { name: "Discard" }));
       await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep draft" }));
-      expect(panel.closed).toBe(false);
+      expect(tab(/New PR · api/)).toBeInTheDocument();
       expect(JSON.parse(localStorage.getItem("github:new-pull:acme/api") ?? "{}")).toMatchObject({ head: "fork:topic" });
 
       await user.click(screen.getByRole("button", { name: "Discard" }));
       await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard draft" }));
-      await waitFor(() => expect(panel.closed).toBe(true));
+      await waitFor(() => expect(tab(/New PR · api/)).not.toBeInTheDocument());
     });
   });
 
@@ -883,7 +914,7 @@ describe("GitHub dashboard views", () => {
       const open = mock(() => null);
       window.open = open as unknown as typeof window.open;
       state.accounts = [{ ...state.accounts[0]!, isAuthenticated: false, profile: { login: "octocat" } }];
-      renderGitHubView("github-accounts", {}, "/github/accounts");
+      renderApp("/github/accounts");
 
       await user.click(await screen.findByRole("button", { name: "Connect" }));
       await waitFor(() => expect(beginAuthorization).toHaveBeenCalledWith({ account: "work" }));
@@ -892,7 +923,7 @@ describe("GitHub dashboard views", () => {
 
     it("disconnects after confirmation", async () => {
       const user = userEvent.setup();
-      renderGitHubView("github-accounts", {}, "/github/accounts");
+      renderApp("/github/accounts");
 
       await user.click(await screen.findByRole("button", { name: /Disconnect/ }));
       const dialog = await screen.findByRole("dialog");
@@ -903,7 +934,7 @@ describe("GitHub dashboard views", () => {
     it("explains token and OAuth setup in plain language instead of environment variables", async () => {
       state.hasOAuthClient = false;
       state.accounts = [{ ...state.accounts[0]!, isAuthenticated: false }];
-      renderGitHubView("github-accounts", {}, "/github/accounts");
+      renderApp("/github/accounts");
 
       expect(await screen.findByText(/paste a personal access token into this account/)).toBeInTheDocument();
       expect(screen.getByText(/Personal access token \(simplest\)/)).toBeInTheDocument();
@@ -913,87 +944,11 @@ describe("GitHub dashboard views", () => {
     it("links an empty account list to the GitHub configuration", async () => {
       const user = userEvent.setup();
       state.accounts = [];
-      renderGitHubView("github-accounts", {}, "/github/accounts");
+      renderApp("/github/accounts");
 
       expect(await screen.findByText(/Sign in with GitHub \(OAuth\)/)).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Open GitHub configuration" }));
       await waitFor(() => expect(screen.queryByText("No GitHub accounts configured")).not.toBeInTheDocument());
-    });
-  });
-
-  describe("dashboard definition", () => {
-    const match = (path: string, params: Record<string, string | undefined>) => ({ pathname: path, params, searchParams: new URLSearchParams() });
-
-    it("opens the panel named by the route in the main area", () => {
-      const api = fakeApi();
-      api.panels.push({ panelId: "github-navigator", viewId: "github-navigator", params: {}, title: "Issues & PRs" });
-
-      dashboard.onNavigate?.(match("/github", {}), api);
-      dashboard.onNavigate?.(match("/github/octo/repo", { owner: "octo", repo: "repo" }), api);
-      dashboard.onNavigate?.(match("/github/accounts", { owner: "accounts" }), api);
-      dashboard.onNavigate?.(match("/github/octo/repo/issues/new", { owner: "octo", repo: "repo", kind: "issues", number: "new" }), api);
-      dashboard.onNavigate?.(match("/github/octo/repo/pulls/7", { owner: "octo", repo: "repo", kind: "pulls", number: "7" }), api);
-      dashboard.onNavigate?.(match("/github/octo/repo/pulls/x", { owner: "octo", repo: "repo", kind: "pulls", number: "x" }), api);
-
-      expect(api.opened.map(open => [open.viewId, open.params])).toEqual([
-        ["github-accounts", {}],
-        ["github-issue-create", { owner: "octo", repo: "repo" }],
-        ["github-item", { owner: "octo", repo: "repo", kind: "pull", number: 7 }],
-      ]);
-      expect(api.opened[0]!.options).toMatchObject({ position: "right", referencePanelId: "github-navigator" });
-    });
-
-    it("routes /pulls/new to the new pull request form and back", () => {
-      const api = fakeApi();
-      api.panels.push({ panelId: "github-navigator", viewId: "github-navigator", params: {}, title: "Issues & PRs" });
-      const at = match("/github/octo/repo/pulls/new", { owner: "octo", repo: "repo", kind: "pulls", number: "new" });
-      dashboard.onNavigate?.(at, api);
-      expect(api.opened.map(open => [open.viewId, open.params])).toEqual([["github-pull-create", { owner: "octo", repo: "repo" }]]);
-      expect(dashboard.pathForActivePanel?.({ panelId: "p", viewId: "github-pull-create", params: { owner: "acme", repo: "api" } }, at)).toBe(
-        "/github/acme/api/pulls/new",
-      );
-      expect(dashboard.documentTitle?.(at)).toBe("New pull request · octo/repo · GitHub");
-    });
-
-    it("makes the route's repository the selected one", () => {
-      const api = fakeApi();
-      localStorage.setItem("github:repo", JSON.stringify("octo/repo"));
-      dashboard.onNavigate?.(match("/github/acme/api/issues/new", { owner: "acme", repo: "api", kind: "issues", number: "new" }), api);
-
-      expect(JSON.parse(localStorage.getItem("github:repo") ?? "null")).toBe("acme/api");
-      expect(JSON.parse(localStorage.getItem("github:recent-repos") ?? "[]")).toEqual(["acme/api"]);
-      expect(api.opened.at(-1)).toEqual(expect.objectContaining({ viewId: "github-issue-create", params: { owner: "acme", repo: "api" } }));
-      expect(
-        dashboard.pathForActivePanel?.(
-          { panelId: "github-issue-create:acme/api", viewId: "github-issue-create", params: { owner: "acme", repo: "api" } },
-          match("/github/octo/repo", { owner: "octo", repo: "repo" }),
-        ),
-      ).toBe("/github/acme/api/issues/new");
-    });
-
-    it("fills the placeholder panel instead of adding a second item panel", () => {
-      const api = fakeApi();
-      api.panels.push({ panelId: "github-navigator", viewId: "github-navigator", params: {}, title: "Issues & PRs" });
-      api.panels.push({ panelId: "github-item:new", viewId: "github-item", params: {}, title: "Select an issue" });
-
-      dashboard.onNavigate?.(match("/github/octo/repo/issues/1", { owner: "octo", repo: "repo", kind: "issues", number: "1" }), api);
-
-      expect(api.opened).toHaveLength(0);
-      expect(api.panels.find(panel => panel.panelId === "github-item:new")?.params).toEqual({ owner: "octo", repo: "repo", kind: "issue", number: 1 });
-    });
-
-    it("maps the active panel back to a URL", () => {
-      const at = match("/github/octo/repo", { owner: "octo", repo: "repo" });
-      const path = (viewId: string, params: ViewParams = {}) => dashboard.pathForActivePanel?.({ panelId: viewId, viewId, params }, at);
-      expect(path("github-item", { owner: "octo", repo: "repo", kind: "issue", number: 1 })).toBe("/github/octo/repo/issues/1");
-      expect(path("github-item", { owner: "octo", repo: "repo", kind: "pull", number: 7 })).toBe("/github/octo/repo/pulls/7");
-      expect(path("github-item")).toBeNull();
-      expect(path("github-issue-create")).toBe("/github/octo/repo/issues/new");
-      expect(path("github-accounts")).toBe("/github/accounts");
-      expect(path("github-navigator")).toBeNull();
-      expect(dashboard.documentTitle?.(match("/github/octo/repo/pulls/7", { owner: "octo", repo: "repo", kind: "pulls", number: "7" }))).toBe(
-        "#7 · octo/repo · GitHub",
-      );
     });
   });
 });

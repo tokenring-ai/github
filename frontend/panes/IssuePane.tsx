@@ -1,26 +1,26 @@
+import { usePanelBadge, usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import InlineDropdown, { InlineDropdownItem } from "@tokenring-ai/one-frontend/components/ui/InlineDropdown.tsx";
 import StatusBadge from "@tokenring-ai/one-frontend/components/ui/StatusBadge.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
-import { setPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { ViewPanelHandle } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useBusyAction } from "@tokenring-ai/one-frontend/hooks/useBusyAction.ts";
 import { useConfirmDialog } from "@tokenring-ai/one-frontend/hooks/useConfirmDialog.tsx";
+import { usePanel } from "@tokenring-ai/one-frontend/layout/hooks.ts";
 import { type GitHubRepoRef, githubRPCClient, useGitHubIssue, useGitHubLabels } from "@tokenring-ai/one-frontend/rpc.ts";
+import { TextArea, TextField } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { Bot, ChevronDown, CircleCheck, CircleDot, Pencil, Save } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
-import type { GitHubItemParams } from "../app.tsx";
+import ActionButton from "../components/ActionButton.tsx";
+import CommentComposer from "../components/CommentComposer.tsx";
+import ItemPaneShell from "../components/ItemPaneShell.tsx";
+import { ISSUE_STATE_BADGES, parseLoginList, timeAgo } from "../components/itemFormat.ts";
+import LabelChip from "../components/LabelChip.tsx";
+import LabelPicker from "../components/LabelPicker.tsx";
+import Markdown from "../components/Markdown.tsx";
+import TimelineEntry, { Avatar } from "../components/TimelineEntry.tsx";
 import { clearGitHubDraft, draftKey, setGitHubDraft, useGitHubAccount, useGitHubDrafts } from "../lib/githubStore.ts";
-import ActionButton from "./ActionButton.tsx";
-import CommentComposer from "./CommentComposer.tsx";
-import ItemPanelShell from "./ItemPanelShell.tsx";
-import { ISSUE_STATE_BADGES, parseLoginList, timeAgo } from "./itemFormat.ts";
-import LabelChip from "./LabelChip.tsx";
-import LabelPicker from "./LabelPicker.tsx";
-import Markdown from "./Markdown.tsx";
-import TimelineEntry, { Avatar } from "./TimelineEntry.tsx";
-import { useWorkWithAgent } from "./useWorkWithAgent.ts";
+import { useWorkWithAgent } from "../lib/useGitHubWorkWithAgent.ts";
 
 interface EditDraft {
   title: string;
@@ -28,15 +28,15 @@ interface EditDraft {
   assignees: string;
 }
 
-export interface IssuePanelProps {
+export interface IssuePaneProps {
   owner: string;
   repo: string;
   number: number;
-  panel: ViewPanelHandle<GitHubItemParams>;
 }
 
 /** One issue: description, comments, and the actions the user can take on it. */
-export default function IssuePanel({ owner, repo, number, panel }: IssuePanelProps) {
+export default function IssuePane({ owner, repo, number }: IssuePaneProps) {
+  const panel = usePanel();
   const { account, agentTypes, isAuthenticated } = useGitHubAccount();
   const ref = useMemo<GitHubRepoRef>(() => ({ owner, repo, ...(account ? { account } : {}) }), [account, owner, repo]);
   const query = useGitHubIssue(ref, number);
@@ -58,15 +58,10 @@ export default function IssuePanel({ owner, repo, number, panel }: IssuePanelPro
   }, [globalMutate]);
 
   // The tab is named after the issue once it loads.
-  useEffect(() => {
-    panel.setTitle(issue ? `#${number} ${issue.title}` : `Issue #${number}`);
-  }, [issue, number, panel]);
+  usePanelTitle(issue ? `#${number} ${issue.title}` : `Issue #${number}`);
 
   // An unsent comment earns an amber dot on the tab, so a hidden panel still shows it has work in it.
-  useEffect(() => {
-    setPanelBadge(panel.panelId, draft ? { tone: "warning", title: "Unsent comment" } : null);
-  }, [draft, panel.panelId]);
-  useEffect(() => () => setPanelBadge(panel.panelId, null), [panel.panelId]);
+  usePanelBadge(draft ? { tone: "warning", label: "Unsent comment" } : null);
 
   const submitComment = useCallback(async () => {
     const body = draft.trim();
@@ -155,10 +150,8 @@ export default function IssuePanel({ owner, repo, number, panel }: IssuePanelPro
     setEdit(null);
   }, [edit, issue, update]);
 
-  const inputClass = "w-full bg-input border border-primary rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus-accent";
-
   return (
-    <ItemPanelShell
+    <ItemPaneShell
       owner={owner}
       repo={repo}
       number={number}
@@ -177,21 +170,16 @@ export default function IssuePanel({ owner, repo, number, panel }: IssuePanelPro
                 <label htmlFor={`issue-title-${number}`} className="sr-only">
                   Title
                 </label>
-                <input
-                  id={`issue-title-${number}`}
-                  value={edit.title}
-                  onChange={event => setEdit({ ...edit, title: event.target.value })}
-                  className={inputClass}
-                />
+                <TextField id={`issue-title-${number}`} size="md" value={edit.title} onChange={value => setEdit({ ...edit, title: value })} />
                 <label htmlFor={`issue-assignees-${number}`} className="text-xs font-semibold text-muted uppercase tracking-wider block">
                   Assignees <span className="font-normal normal-case tracking-normal">(comma-separated logins)</span>
                 </label>
-                <input
+                <TextField
                   id={`issue-assignees-${number}`}
+                  size="md"
                   value={edit.assignees}
-                  onChange={event => setEdit({ ...edit, assignees: event.target.value })}
+                  onChange={value => setEdit({ ...edit, assignees: value })}
                   placeholder="octocat, hubot"
-                  className={inputClass}
                 />
               </div>
             ) : (
@@ -306,13 +294,7 @@ export default function IssuePanel({ owner, repo, number, panel }: IssuePanelPro
               <label htmlFor={`issue-body-${number}`} className="text-xs font-semibold text-muted uppercase tracking-wider block">
                 Description <span className="font-normal normal-case tracking-normal">(Markdown)</span>
               </label>
-              <textarea
-                id={`issue-body-${number}`}
-                value={edit.body}
-                onChange={event => setEdit({ ...edit, body: event.target.value })}
-                rows={14}
-                className={`${inputClass} resize-y min-h-48 font-mono`}
-              />
+              <TextArea id={`issue-body-${number}`} size="md" mono value={edit.body} onChange={value => setEdit({ ...edit, body: value })} rows={14} />
             </>
           ) : (
             <TimelineEntry author={issue.author} createdAt={issue.created_at} htmlUrl={issue.html_url}>
@@ -356,6 +338,6 @@ export default function IssuePanel({ owner, repo, number, panel }: IssuePanelPro
         </div>
       )}
       <ConfirmDialog />
-    </ItemPanelShell>
+    </ItemPaneShell>
   );
 }

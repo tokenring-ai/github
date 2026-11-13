@@ -1,15 +1,15 @@
 import type { GitHubPRComment, GitHubPRReview } from "@tokenring-ai/github/pullRequestTypes";
+import { usePanelBadge, usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
 import ErrorState from "@tokenring-ai/one-frontend/components/ui/ErrorState.tsx";
 import FilterTabs from "@tokenring-ai/one-frontend/components/ui/FilterTabs.tsx";
 import LoadingState from "@tokenring-ai/one-frontend/components/ui/LoadingState.tsx";
 import StatusBadge from "@tokenring-ai/one-frontend/components/ui/StatusBadge.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
-import { setPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { ViewPanelHandle } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useBusyAction } from "@tokenring-ai/one-frontend/hooks/useBusyAction.ts";
 import { useConfirmDialog } from "@tokenring-ai/one-frontend/hooks/useConfirmDialog.tsx";
 import { useTabState } from "@tokenring-ai/one-frontend/hooks/useTabState.ts";
+import { usePanel } from "@tokenring-ai/one-frontend/layout/hooks.ts";
 import { cn } from "@tokenring-ai/one-frontend/lib/utils.ts";
 import {
   type GitHubRepoRef,
@@ -22,14 +22,12 @@ import {
 import { TextArea, TextField } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { Bot, CircleDot, FileDiff, GitPullRequestClosed, ListChecks, MessageSquare, Pencil, Save, UserPlus, Users } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
-import type { GitHubItemParams } from "../app.tsx";
-import { clearGitHubDraft, draftKey, setGitHubDraft, useGitHubAccount, useGitHubDrafts } from "../lib/githubStore.ts";
-import ActionButton from "./ActionButton.tsx";
-import ChecksList from "./ChecksList.tsx";
-import CommentComposer from "./CommentComposer.tsx";
-import ItemPanelShell from "./ItemPanelShell.tsx";
+import ActionButton from "../components/ActionButton.tsx";
+import ChecksList from "../components/ChecksList.tsx";
+import CommentComposer from "../components/CommentComposer.tsx";
+import ItemPaneShell from "../components/ItemPaneShell.tsx";
 import {
   CHECK_STATE_BADGES,
   ITEM_COMMENT_LIMIT,
@@ -39,15 +37,16 @@ import {
   pullRequestState,
   REVIEW_STATE_BADGES,
   timeAgo,
-} from "./itemFormat.ts";
-import LabelChip from "./LabelChip.tsx";
-import LabelPicker from "./LabelPicker.tsx";
-import Markdown from "./Markdown.tsx";
-import MergeControl from "./MergeControl.tsx";
-import PatchView from "./PatchView.tsx";
-import ReviewDialog, { type ReviewEvent } from "./ReviewDialog.tsx";
-import TimelineEntry, { Avatar } from "./TimelineEntry.tsx";
-import { useWorkWithAgent } from "./useWorkWithAgent.ts";
+} from "../components/itemFormat.ts";
+import LabelChip from "../components/LabelChip.tsx";
+import LabelPicker from "../components/LabelPicker.tsx";
+import Markdown from "../components/Markdown.tsx";
+import MergeControl from "../components/MergeControl.tsx";
+import PatchView from "../components/PatchView.tsx";
+import ReviewDialog, { type ReviewEvent } from "../components/ReviewDialog.tsx";
+import TimelineEntry, { Avatar } from "../components/TimelineEntry.tsx";
+import { clearGitHubDraft, draftKey, setGitHubDraft, useGitHubAccount, useGitHubDrafts } from "../lib/githubStore.ts";
+import { useWorkWithAgent } from "../lib/useGitHubWorkWithAgent.ts";
 
 type Tab = "conversation" | "files" | "checks";
 const TABS: readonly Tab[] = ["conversation", "files", "checks"];
@@ -153,15 +152,15 @@ function ChecksTab({ repoRef, number }: { repoRef: GitHubRepoRef; number: number
   );
 }
 
-export interface PullRequestPanelProps {
+export interface PullRequestPaneProps {
   owner: string;
   repo: string;
   number: number;
-  panel: ViewPanelHandle<GitHubItemParams>;
 }
 
 /** One pull request: conversation, changed files, checks, and review actions. */
-export default function PullRequestPanel({ owner, repo, number, panel }: PullRequestPanelProps) {
+export default function PullRequestPane({ owner, repo, number }: PullRequestPaneProps) {
+  const panel = usePanel();
   const { account, agentTypes, isAuthenticated } = useGitHubAccount();
   const repoRef = useMemo<GitHubRepoRef>(() => ({ owner, repo, ...(account ? { account } : {}) }), [account, owner, repo]);
   const query = useGitHubPullRequest(repoRef, number);
@@ -194,15 +193,10 @@ export default function PullRequestPanel({ owner, repo, number, panel }: PullReq
     void globalMutate(candidate => typeof candidate === "string" && candidate.startsWith("/github/pulls/"), undefined, { revalidate: true });
   }, [globalMutate]);
 
-  useEffect(() => {
-    panel.setTitle(pull ? `#${number} ${pull.title}` : `PR #${number}`);
-  }, [number, panel, pull]);
+  usePanelTitle(pull ? `#${number} ${pull.title}` : `PR #${number}`);
 
-  useEffect(() => {
-    const editing = edit !== null && pull !== null && (edit.title !== pull.title || edit.body !== (pull.body ?? ""));
-    setPanelBadge(panel.panelId, editing ? { tone: "warning", title: "Unsaved edits" } : draft ? { tone: "warning", title: "Unsent comment" } : null);
-  }, [draft, edit, panel.panelId, pull]);
-  useEffect(() => () => setPanelBadge(panel.panelId, null), [panel.panelId]);
+  const editing = edit !== null && pull !== null && (edit.title !== pull.title || edit.body !== (pull.body ?? ""));
+  usePanelBadge(editing ? { tone: "warning", label: "Unsaved edits" } : draft ? { tone: "warning", label: "Unsent comment" } : null);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, done: string) => {
@@ -298,7 +292,7 @@ export default function PullRequestPanel({ owner, repo, number, panel }: PullReq
   }, [edit, number, pull, repoRef, run]);
 
   return (
-    <ItemPanelShell
+    <ItemPaneShell
       owner={owner}
       repo={repo}
       number={number}
@@ -450,10 +444,10 @@ export default function PullRequestPanel({ owner, repo, number, panel }: PullReq
                 <label htmlFor={`pr-reviewers-${number}`} className="sr-only">
                   Reviewers
                 </label>
-                <input
+                <TextField
                   id={`pr-reviewers-${number}`}
                   value={reviewerInput}
-                  onChange={event => setReviewerInput(event.target.value)}
+                  onChange={setReviewerInput}
                   onKeyDown={event => {
                     if (event.key === "Enter") {
                       event.preventDefault();
@@ -461,7 +455,7 @@ export default function PullRequestPanel({ owner, repo, number, panel }: PullReq
                     }
                   }}
                   placeholder="octocat, hubot"
-                  className="flex-1 bg-input border border-primary rounded-lg px-3 py-1.5 text-xs text-primary placeholder-muted focus-accent"
+                  className="flex-1"
                 />
                 <ActionButton variant="primary" busy={acting} onClick={() => void requestReviewers()} disabled={parseLoginList(reviewerInput).length === 0}>
                   Request
@@ -563,6 +557,6 @@ export default function PullRequestPanel({ owner, repo, number, panel }: PullReq
 
       <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} onSubmit={submitReview} busy={acting} />
       <ConfirmDialog />
-    </ItemPanelShell>
+    </ItemPaneShell>
   );
 }

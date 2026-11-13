@@ -1,22 +1,22 @@
+import { usePanelBadge, usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
 import FormActionBar from "@tokenring-ai/one-frontend/components/ui/FormActionBar.tsx";
-import { setPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { ViewProps } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useBusyAction } from "@tokenring-ai/one-frontend/hooks/useBusyAction.ts";
 import { useConfirmDialog } from "@tokenring-ai/one-frontend/hooks/useConfirmDialog.tsx";
 import { useKeyboardShortcuts } from "@tokenring-ai/one-frontend/hooks/useKeyboardShortcuts.ts";
 import { useLocalStorageState } from "@tokenring-ai/one-frontend/hooks/useLocalStorageState.ts";
+import type { ViewProps } from "@tokenring-ai/one-frontend/layout/define.ts";
+import { usePanel } from "@tokenring-ai/one-frontend/layout/hooks.ts";
 import { type GitHubRepoRef, githubRPCClient } from "@tokenring-ai/one-frontend/rpc.ts";
 import { Checkbox, Select, TextArea, TextField, toastManager, ViewHeader, ViewShell } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { GitPullRequest, GitPullRequestCreate, X } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSWRConfig } from "swr";
-import type { GitHubPullCreateParams } from "../app.tsx";
+import { GITHUB_GRADIENT } from "../ids.ts";
 import { useGitHubBranches, useGitHubRepository } from "../lib/githubQueries.ts";
-import { useGitHubNavigation } from "../lib/githubShared.tsx";
 import { newPullDraftKey, useGitHubAccount, useGitHubRepo } from "../lib/githubStore.ts";
-import { GITHUB_DASHBOARD_ID } from "../manifest.ts";
+import { useGitHubLayoutNavigation } from "../lib/useGitHubLayoutNavigation.ts";
 
 interface NewPullDraft {
   title: string;
@@ -70,14 +70,15 @@ function BranchField({ label, value, onChange, branches, freeText, disabled, pla
  * request closes this panel and opens it. Like the new-issue form, the draft is
  * persisted per repository and the tab is badged while it holds unsent text.
  */
-export default function GitHubPullCreateView({ params, panel }: ViewProps<GitHubPullCreateParams>) {
+export default function GitHubPullCreatePane({ params }: ViewProps) {
+  const panel = usePanel();
   const { repo: selectedRepo } = useGitHubRepo();
   const { account } = useGitHubAccount();
   const repo = useMemo<GitHubRepoRef | null>(() => {
     if (params.owner && params.repo) return { owner: params.owner, repo: params.repo, ...(account ? { account } : {}) };
     return selectedRepo;
   }, [account, params.owner, params.repo, selectedRepo]);
-  const { openItem } = useGitHubNavigation();
+  const { openItem } = useGitHubLayoutNavigation();
   const { mutate: globalMutate } = useSWRConfig();
   const branches = useGitHubBranches(repo);
   const repository = useGitHubRepository(repo);
@@ -93,14 +94,8 @@ export default function GitHubPullCreateView({ params, panel }: ViewProps<GitHub
   const typeBranches = freeText || Boolean(branches.error);
   const sameBranch = Boolean(draft.head) && draft.head === base;
 
-  useEffect(() => {
-    panel.setTitle(repo ? `New PR · ${repo.repo}` : "New pull request");
-  }, [panel, repo]);
-
-  useEffect(() => {
-    setPanelBadge(panel.panelId, dirty ? { tone: "warning", title: "Unsaved pull request draft" } : null);
-  }, [dirty, panel.panelId]);
-  useEffect(() => () => setPanelBadge(panel.panelId, null), [panel.panelId]);
+  usePanelTitle(repo ? `New PR · ${repo.repo}` : "New pull request");
+  usePanelBadge(dirty ? { tone: "warning", label: "Unsaved pull request draft" } : null);
 
   const canCreate = Boolean(draft.title.trim() && draft.head.trim() && base.trim()) && !sameBranch;
 
@@ -182,7 +177,15 @@ export default function GitHubPullCreateView({ params, panel }: ViewProps<GitHub
     <ViewShell
       pad="page"
       width="prose"
-      header={<ViewHeader variant="panel" dashboardId={GITHUB_DASHBOARD_ID} title="New pull request" subtitle={`${repo.owner}/${repo.repo}`} />}
+      header={
+        <ViewHeader
+          variant="panel"
+          icon={GitPullRequestCreate}
+          iconGradient={GITHUB_GRADIENT}
+          title="New pull request"
+          subtitle={`${repo.owner}/${repo.repo}`}
+        />
+      }
     >
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">

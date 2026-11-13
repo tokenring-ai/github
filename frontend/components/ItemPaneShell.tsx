@@ -2,12 +2,12 @@ import ErrorState from "@tokenring-ai/one-frontend/components/ui/ErrorState.tsx"
 import LoadingState from "@tokenring-ai/one-frontend/components/ui/LoadingState.tsx";
 import ViewHeader from "@tokenring-ai/one-frontend/components/ui/ViewHeader.tsx";
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
-import type { ViewPanelHandle } from "@tokenring-ai/one-frontend/dock/types.ts";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { Button } from "@tokenring-ai/one-frontend/ui";
+import { ExternalLink, GitPullRequest, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
-import { GITHUB_DASHBOARD_ID } from "../manifest.ts";
+import { GITHUB_GRADIENT } from "../ids.ts";
 
-export interface ItemPanelShellProps {
+export interface ItemPaneShellProps {
   owner: string;
   repo: string;
   number: number;
@@ -24,7 +24,7 @@ export interface ItemPanelShellProps {
 }
 
 /** Frame shared by the issue and pull request panels: header, load/error triage, fixed top, scrolling body. */
-export default function ItemPanelShell({
+export default function ItemPaneShell({
   owner,
   repo,
   number,
@@ -37,11 +37,12 @@ export default function ItemPanelShell({
   onClose,
   header,
   children,
-}: ItemPanelShellProps) {
+}: ItemPaneShellProps) {
   const viewHeader = (
     <ViewHeader
       variant="panel"
-      dashboardId={GITHUB_DASHBOARD_ID}
+      icon={GitPullRequest}
+      iconGradient={GITHUB_GRADIENT}
       title={`${kindLabel} #${number}`}
       subtitle={`${owner}/${repo}`}
       actions={[
@@ -77,9 +78,9 @@ export default function ItemPanelShell({
         )}
         {!loading && (
           <div className="flex justify-center pb-6">
-            <button type="button" onClick={onClose} className="text-xs text-muted hover:text-primary cursor-pointer transition-colors focus-ring">
+            <Button variant="ghost" onClick={onClose}>
               Close panel
-            </button>
+            </Button>
           </div>
         )}
       </ViewShell>
@@ -94,5 +95,3 @@ export default function ItemPanelShell({
     </ViewShell>
   );
 }
-
-export type { ViewPanelHandle };

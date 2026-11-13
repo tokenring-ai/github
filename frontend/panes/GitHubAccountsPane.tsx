@@ -1,3 +1,4 @@
+import { usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
 import ErrorState from "@tokenring-ai/one-frontend/components/ui/ErrorState.tsx";
 import LoadingState from "@tokenring-ai/one-frontend/components/ui/LoadingState.tsx";
@@ -6,15 +7,15 @@ import TagChip from "@tokenring-ai/one-frontend/components/ui/TagChip.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
 import ViewHeader from "@tokenring-ai/one-frontend/components/ui/ViewHeader.tsx";
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
-import type { ViewProps } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useBusyAction } from "@tokenring-ai/one-frontend/hooks/useBusyAction.ts";
 import { useConfirmDialog } from "@tokenring-ai/one-frontend/hooks/useConfirmDialog.tsx";
 import { githubRPCClient, useGitHubStatus } from "@tokenring-ai/one-frontend/rpc.ts";
+import { Button } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
-import { ExternalLink, KeyRound, Link2, Loader2, LogOut, RefreshCw } from "lucide-react";
+import { ExternalLink, KeyRound, Link2, LogOut, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GITHUB_DASHBOARD_ID } from "../manifest.ts";
+import { GITHUB_GRADIENT } from "../ids.ts";
 
 /** Give up polling for a sign-in the user never finished. */
 const CONNECT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -83,15 +84,9 @@ function AccountCard({
 
       <div className="flex items-center gap-2 flex-wrap">
         {!account.isAuthenticated && canConnect && (
-          <button
-            type="button"
-            onClick={onConnect}
-            disabled={connecting}
-            className="flex items-center gap-2 px-3 py-1.5 btn-accent text-xs font-semibold rounded-lg transition-colors focus-ring cursor-pointer disabled:opacity-50"
-          >
-            {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-            {connecting ? "Waiting for GitHub…" : "Connect"}
-          </button>
+          <Button icon={Link2} busy={connecting} busyLabel="Waiting for GitHub…" onClick={onConnect}>
+            Connect
+          </Button>
         )}
         {!account.isAuthenticated && !canConnect && !account.usesPersonalAccessToken && (
           <p className="text-xs text-muted">
@@ -132,7 +127,7 @@ function SetupSteps() {
 }
 
 /** Connected GitHub accounts: OAuth sign-in, sign-out, and what each account can do. */
-export default function GitHubAccountsView({ panel }: ViewProps) {
+export default function GitHubAccountsPane() {
   const [connecting, setConnecting] = useState<string | null>(null);
   // Poll while a sign-in is in flight so the card flips to "Connected" when GitHub calls back.
   const status = useGitHubStatus(connecting ? { refreshInterval: 2000 } : undefined);
@@ -140,9 +135,7 @@ export default function GitHubAccountsView({ panel }: ViewProps) {
   const { busy, execute } = useBusyAction();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    panel.setTitle("GitHub accounts");
-  }, [panel]);
+  usePanelTitle("GitHub accounts");
 
   useEffect(() => {
     if (!connecting) return;
@@ -260,7 +253,8 @@ export default function GitHubAccountsView({ panel }: ViewProps) {
       header={
         <ViewHeader
           variant="panel"
-          dashboardId={GITHUB_DASHBOARD_ID}
+          icon={KeyRound}
+          iconGradient={GITHUB_GRADIENT}
           title="GitHub accounts"
           subtitle="Who TokenRing acts as on GitHub"
           actions={[

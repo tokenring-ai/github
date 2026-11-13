@@ -1,25 +1,26 @@
+import { usePanelBadge, usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
 import FormActionBar from "@tokenring-ai/one-frontend/components/ui/FormActionBar.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
 import ViewHeader from "@tokenring-ai/one-frontend/components/ui/ViewHeader.tsx";
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
-import { setPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { ViewProps } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useBusyAction } from "@tokenring-ai/one-frontend/hooks/useBusyAction.ts";
 import { useConfirmDialog } from "@tokenring-ai/one-frontend/hooks/useConfirmDialog.tsx";
 import { useKeyboardShortcuts } from "@tokenring-ai/one-frontend/hooks/useKeyboardShortcuts.ts";
 import { useLocalStorageState } from "@tokenring-ai/one-frontend/hooks/useLocalStorageState.ts";
+import type { ViewProps } from "@tokenring-ai/one-frontend/layout/define.ts";
+import { usePanel } from "@tokenring-ai/one-frontend/layout/hooks.ts";
 import { type GitHubRepoRef, githubRPCClient, useGitHubLabels } from "@tokenring-ai/one-frontend/rpc.ts";
+import { TextArea, TextField } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { CircleDot, FilePlus, X } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSWRConfig } from "swr";
-import type { GitHubIssueCreateParams } from "../app.tsx";
 import { parseLoginList } from "../components/itemFormat.ts";
 import LabelChip from "../components/LabelChip.tsx";
-import { useGitHubNavigation } from "../lib/githubShared.tsx";
+import { GITHUB_GRADIENT } from "../ids.ts";
 import { newIssueDraftKey, useGitHubAccount, useGitHubRepo } from "../lib/githubStore.ts";
-import { GITHUB_DASHBOARD_ID } from "../manifest.ts";
+import { useGitHubLayoutNavigation } from "../lib/useGitHubLayoutNavigation.ts";
 
 interface NewIssueDraft {
   title: string;
@@ -40,14 +41,15 @@ function isDirty(draft: NewIssueDraft): boolean {
  * The panel's own `owner`/`repo` params (from the URL) name the repository; the
  * navigator's selection is only a fallback for a panel restored without them.
  */
-export default function GitHubIssueCreateView({ params, panel }: ViewProps<GitHubIssueCreateParams>) {
+export default function GitHubIssueCreatePane({ params }: ViewProps) {
+  const panel = usePanel();
   const { repo: selectedRepo } = useGitHubRepo();
   const { account } = useGitHubAccount();
   const repo = useMemo<GitHubRepoRef | null>(() => {
     if (params.owner && params.repo) return { owner: params.owner, repo: params.repo, ...(account ? { account } : {}) };
     return selectedRepo;
   }, [account, params.owner, params.repo, selectedRepo]);
-  const { openItem } = useGitHubNavigation();
+  const { openItem } = useGitHubLayoutNavigation();
   const { mutate: globalMutate } = useSWRConfig();
   const labels = useGitHubLabels(repo);
   // Persisted per repository so closing the tab (or reloading) does not lose a
@@ -57,14 +59,8 @@ export default function GitHubIssueCreateView({ params, panel }: ViewProps<GitHu
   const { openConfirm, Dialog: ConfirmDialog } = useConfirmDialog();
   const dirty = repo !== null && isDirty(draft);
 
-  useEffect(() => {
-    panel.setTitle(repo ? `New issue · ${repo.repo}` : "New issue");
-  }, [panel, repo]);
-
-  useEffect(() => {
-    setPanelBadge(panel.panelId, dirty ? { tone: "warning", title: "Unsaved issue draft" } : null);
-  }, [dirty, panel.panelId]);
-  useEffect(() => () => setPanelBadge(panel.panelId, null), [panel.panelId]);
+  usePanelTitle(repo ? `New issue · ${repo.repo}` : "New issue");
+  usePanelBadge(dirty ? { tone: "warning", label: "Unsaved issue draft" } : null);
 
   const toggleLabel = useCallback(
     (name: string) =>
@@ -141,27 +137,24 @@ export default function GitHubIssueCreateView({ params, panel }: ViewProps<GitHu
     );
   }
 
-  const inputClass =
-    "w-full bg-input border border-primary rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus-accent transition-colors disabled:opacity-60";
-
   return (
     <ViewShell
       pad="page"
       width="prose"
-      header={<ViewHeader variant="panel" dashboardId={GITHUB_DASHBOARD_ID} title="New issue" subtitle={`${repo.owner}/${repo.repo}`} />}
+      header={<ViewHeader variant="panel" icon={FilePlus} iconGradient={GITHUB_GRADIENT} title="New issue" subtitle={`${repo.owner}/${repo.repo}`} />}
     >
       <div className="space-y-4">
         <div>
           <label htmlFor="new-issue-title" className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1">
             Title
           </label>
-          <input
+          <TextField
             id="new-issue-title"
+            size="md"
             value={draft.title}
-            onChange={event => setDraft(previous => ({ ...previous, title: event.target.value }))}
+            onChange={title => setDraft(previous => ({ ...previous, title }))}
             disabled={creating}
             placeholder="Short, descriptive title"
-            className={inputClass}
           />
         </div>
 
@@ -169,14 +162,15 @@ export default function GitHubIssueCreateView({ params, panel }: ViewProps<GitHu
           <label htmlFor="new-issue-body" className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1">
             Description <span className="font-normal normal-case tracking-normal">(Markdown)</span>
           </label>
-          <textarea
+          <TextArea
             id="new-issue-body"
+            size="md"
+            mono
             value={draft.body}
-            onChange={event => setDraft(previous => ({ ...previous, body: event.target.value }))}
+            onChange={body => setDraft(previous => ({ ...previous, body }))}
             rows={10}
             disabled={creating}
             placeholder="What is happening, what should happen, how to reproduce…"
-            className={`${inputClass} resize-y min-h-40 font-mono`}
           />
         </div>
 
@@ -209,13 +203,13 @@ export default function GitHubIssueCreateView({ params, panel }: ViewProps<GitHu
           <label htmlFor="new-issue-assignees" className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1">
             Assignees <span className="font-normal normal-case tracking-normal">(comma-separated logins)</span>
           </label>
-          <input
+          <TextField
             id="new-issue-assignees"
+            size="md"
             value={draft.assignees}
-            onChange={event => setDraft(previous => ({ ...previous, assignees: event.target.value }))}
+            onChange={assignees => setDraft(previous => ({ ...previous, assignees }))}
             disabled={creating}
             placeholder="octocat, hubot"
-            className={inputClass}
           />
         </div>
 
