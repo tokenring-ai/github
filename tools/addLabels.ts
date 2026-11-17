@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -10,8 +11,8 @@ const name = "github_addLabels";
 const displayName = "GitHub/addLabels";
 const description = "Add labels to a GitHub issue, keeping any labels already on it";
 
-/** Additive and easily reversed, so less risky than editing content. */
-const SAFETY_LEVEL = 4;
+/** Changes a shared record; easily reversed (approval standard: shared change). */
+const SAFETY_LEVEL = 7;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -31,6 +32,7 @@ async function execute({ owner, repo, issueNumber, labels, account }: z.output<t
       message: `Add label(s) ${labels.join(", ")} to ${owner}/${repo}#${issueNumber}?`,
       detailedDescription: `Add the labels ${labels.join(", ")} to issue ${owner}/${repo}#${issueNumber}. Existing labels are kept. Labels that don't exist in the repository are created.`,
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.labels`, summary: `Change issue labels in ${owner}/${repo}` },
       default: true,
     },
     agent,

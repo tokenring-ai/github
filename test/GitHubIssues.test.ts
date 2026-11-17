@@ -272,7 +272,7 @@ describe("GitHub issues", () => {
 
       expect(requests).toHaveLength(1);
       expect(result.result).toContain("octo/repo#42");
-      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_createIssue", safetyLevel: 5 });
+      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_createIssue", safetyLevel: 8 });
     });
 
     it("does not remove or add labels when approval is denied", async () => {

@@ -198,18 +198,23 @@ export default function PullRequestPane({ owner, repo, number }: PullRequestPane
   const editing = edit !== null && pull !== null && (edit.title !== pull.title || edit.body !== (pull.body ?? ""));
   usePanelBadge(editing ? { tone: "warning", label: "Unsaved edits" } : draft ? { tone: "warning", label: "Unsent comment" } : null);
 
+  /** Runs one action at a time; true when it succeeded (false on failure, or when another was running). */
   const run = useCallback(
-    async (action: () => Promise<unknown>, done: string) => {
-      await executeAction(async () => {
+    async (action: () => Promise<unknown>, done: string): Promise<boolean> => {
+      const succeeded = await executeAction(async () => {
         try {
           await action();
           toastManager.success(done, { duration: 2500 });
           void query.mutate();
           refreshLists();
+          return true;
         } catch (error) {
           toastManager.error(formatError(error), { duration: 6000 });
+          return false;
         }
       });
+      if (succeeded === undefined) toastManager.info("Another action is still running; try again in a moment.", { duration: 3000 });
+      return succeeded === true;
     },
     [executeAction, query.mutate, refreshLists],
   );
@@ -247,8 +252,10 @@ export default function PullRequestPane({ owner, repo, number }: PullRequestPane
 
   const submitReview = useCallback(
     async (event: ReviewEvent, body: string) => {
-      await run(() => githubRPCClient.reviewPullRequest({ ...repoRef, prNumber: number, event, ...(body ? { body } : {}) }), "Review submitted");
-      setReviewOpen(false);
+      // Kept open on failure, so the review can be retried as written.
+      if (await run(() => githubRPCClient.reviewPullRequest({ ...repoRef, prNumber: number, event, ...(body ? { body } : {}) }), "Review submitted")) {
+        setReviewOpen(false);
+      }
     },
     [number, repoRef, run],
   );
@@ -256,8 +263,9 @@ export default function PullRequestPane({ owner, repo, number }: PullRequestPane
   const requestReviewers = useCallback(async () => {
     const reviewers = parseLoginList(reviewerInput ?? "");
     if (reviewers.length === 0) return;
-    await run(() => githubRPCClient.addPRReviewers({ ...repoRef, prNumber: number, reviewers }), `Requested review from ${reviewers.join(", ")}`);
-    setReviewerInput(null);
+    if (await run(() => githubRPCClient.addPRReviewers({ ...repoRef, prNumber: number, reviewers }), `Requested review from ${reviewers.join(", ")}`)) {
+      setReviewerInput(null);
+    }
   }, [number, repoRef, reviewerInput, run]);
 
   /** Pull requests share issue numbers, so labels go through the issue label endpoints. */
@@ -285,8 +293,12 @@ export default function PullRequestPane({ owner, repo, number }: PullRequestPane
       ...(title !== pull.title ? { title } : {}),
       ...(edit.body !== (pull.body ?? "") ? { body: edit.body } : {}),
     };
-    if (Object.keys(changes).length > 0) {
-      await run(() => githubRPCClient.updatePullRequest({ ...repoRef, prNumber: number, ...changes }), "Pull request updated");
+    // The form stays open with your text if the save fails.
+    if (
+      Object.keys(changes).length > 0 &&
+      !(await run(() => githubRPCClient.updatePullRequest({ ...repoRef, prNumber: number, ...changes }), "Pull request updated"))
+    ) {
+      return;
     }
     setEdit(null);
   }, [edit, number, pull, repoRef, run]);

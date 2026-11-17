@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -10,8 +11,8 @@ const name = "github_removeLabel";
 const displayName = "GitHub/removeLabel";
 const description = "Remove a single label from a GitHub issue";
 
-/** Reversible, but it discards triage state someone else may have set. */
-const SAFETY_LEVEL = 4;
+/** Changes a shared record; easily reversed (approval standard: shared change). */
+const SAFETY_LEVEL = 7;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -31,6 +32,7 @@ async function execute({ owner, repo, issueNumber, label, account }: z.output<ty
       message: `Remove label "${label}" from ${owner}/${repo}#${issueNumber}?`,
       detailedDescription: `Remove the label "${label}" from issue ${owner}/${repo}#${issueNumber}. The label itself stays defined in the repository.`,
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.labels`, summary: `Change issue labels in ${owner}/${repo}` },
       default: true,
     },
     agent,

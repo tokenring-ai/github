@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -10,8 +11,8 @@ const name = "github_updateIssue";
 const displayName = "GitHub/updateIssue";
 const description = "Update a GitHub issue's title, body, state, labels, assignees, or milestone";
 
-/** Editing or closing an issue overwrites content someone else may have authored. */
-const SAFETY_LEVEL = 6;
+/** Edits a shared record that can be changed back (approval standard: shared change). */
+const SAFETY_LEVEL = 7;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -48,6 +49,7 @@ async function execute({ owner, repo, issueNumber, ...options }: z.output<typeof
         ...changes,
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.issue.update`, summary: `Update issues in ${owner}/${repo}` },
       default: false,
     },
     agent,

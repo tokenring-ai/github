@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -10,7 +11,8 @@ const name = "github_closePR";
 const displayName = "GitHub/closePR";
 const description = "Close a pull request without merging it";
 
-const SAFETY_LEVEL = 5;
+/** Changes a shared record; can be reopened (approval standard: shared change). */
+const SAFETY_LEVEL = 7;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -37,6 +39,7 @@ async function execute({ owner, repo, prNumber, account }: z.output<typeof input
         `Merging: ${pull.head.ref} → ${pull.base.ref}`,
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.pr.close`, summary: `Close pull requests in ${owner}/${repo}` },
       default: false,
     },
     agent,

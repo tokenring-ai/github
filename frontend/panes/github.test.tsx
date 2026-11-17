@@ -134,7 +134,7 @@ const beginAuthorization = mock(async (_args: { account: string }) => ({
   redirectUri: "http://127.0.0.1:1/oauth/github/callback",
 }));
 const revokeAuthorization = mock(async () => ({ status: "success" as const }));
-const createAgent = mock(async (_args: { agentType: string; headless: boolean }) => ({ id: "agent-new", displayName: "Coding Agent", description: "" }));
+const createAgent = mock(async (_args: { agentType: string }) => ({ id: "agent-new", displayName: "Coding Agent", description: "" }));
 const deleteAgent = mock(async () => ({ status: "success" as const }));
 const mutateList = mock(async () => undefined);
 const searchIssues = mock(async (_args: Record<string, unknown>) => ({ issues: [] as (typeof issueOne)[] }));
@@ -577,6 +577,23 @@ describe("GitHub app", () => {
       await waitFor(() => expect(removeLabel).toHaveBeenCalledWith({ owner: "octo", repo: "repo", issueNumber: 1, label: "bug" }));
     });
 
+    it("keeps the edit form and your text when saving an issue fails", async () => {
+      const user = userEvent.setup();
+      renderApp(ISSUE_URL);
+
+      await user.click(await screen.findByRole("button", { name: "Edit" }));
+      const body = document.getElementById("issue-body-1") as HTMLTextAreaElement;
+      await user.clear(body);
+      await user.type(body, "A long rewrite");
+      updateIssue.mockImplementationOnce(async () => {
+        throw new Error("Validation failed");
+      });
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(updateIssue).toHaveBeenCalled());
+      expect((document.getElementById("issue-body-1") as HTMLTextAreaElement | null)?.value).toBe("A long rewrite");
+    });
+
     it("asks before closing an issue and can close it as not planned", async () => {
       const user = userEvent.setup();
       renderApp(ISSUE_URL);
@@ -623,7 +640,7 @@ describe("GitHub app", () => {
       renderApp(ISSUE_URL);
 
       await user.click(await screen.findByRole("button", { name: /Work with agent/ }));
-      await waitFor(() => expect(createAgent).toHaveBeenCalledWith({ agentType: "code", headless: false }));
+      await waitFor(() => expect(createAgent).toHaveBeenCalledWith({ agentType: "code" }));
       await waitFor(() => expect(tab(/agent-new/)).toBeInTheDocument());
       const inputs = JSON.parse(localStorage.getItem("tokenring-chat-inputs") ?? "{}") as Record<string, string>;
       expect(inputs["agent-new"]).toContain("octo/repo#1");

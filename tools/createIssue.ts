@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -11,8 +12,8 @@ const name = "github_createIssue";
 const displayName = "GitHub/createIssue";
 const description = "Create a new issue in a GitHub repository";
 
-/** Opening an issue is publicly visible and notifies watchers. */
-const SAFETY_LEVEL = 5;
+/** Public, and notifies the repository watchers (approval standard: reaches people). */
+const SAFETY_LEVEL = 8;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -44,6 +45,7 @@ async function execute({ owner, repo, ...options }: z.output<typeof inputSchema>
         options.body ? intelligentTruncate(options.body, { maxLength: 2_000 }) : "(empty)",
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.issue.create`, summary: `Open issues in ${owner}/${repo}` },
       default: false,
     },
     agent,

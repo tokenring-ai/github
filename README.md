@@ -52,21 +52,21 @@ also pass one directly:
 /connect github --token=ghp_xxx --name=ci
 ```
 
-A token passed this way is written **literally** into the configuration overrides for the scope you
-save to — by default `--save=workspace`, which is `<workspace>/.tokenring/config.yaml` inside the
-project. Pass `--save=global` to keep it out of the repository, or skip the flag entirely and point
-the account at a secret the plugin resolves at startup:
+The token is saved in the vault (category `github`, key `<name>.token`) and the account's `token` is
+set to a `{ source: vault, category: github, key: <name>.token }` reference, so the vault must be
+unlocked and the token never lands in a configuration file. A token typed with `--token` stays in the
+chat history; the masked prompt (shown when no OAuth app is configured) does not. You can also point
+an account at a secret yourself:
 
 ```yaml
 github:
   accounts:
     ci:
       token: { source: env, env: GITHUB_TOKEN }
-      # or: { source: vault, category: github, key: ci-pat }
 ```
 
-Unlike a personal access token, an OAuth token obtained through `/connect github` is always stored in
-the vault and never written to the configuration file.
+An OAuth token obtained through `/connect github` is likewise stored in the vault and never written to
+the configuration file.
 
 ## Dashboard
 

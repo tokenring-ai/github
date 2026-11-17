@@ -19,7 +19,7 @@ export interface MergeControlProps {
   busy: boolean;
   openConfirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   /** Runs a write with the panel's toast and refresh handling. */
-  run: (action: () => Promise<unknown>, done: string) => Promise<void>;
+  run: (action: () => Promise<unknown>, done: string) => Promise<unknown>;
 }
 
 /**

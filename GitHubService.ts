@@ -379,8 +379,11 @@ export default class GitHubService implements TokenRingService {
     }
 
     this.authData.delete(accountName);
-    if (this.vaultService?.getSecret(GITHUB_VAULT_CATEGORY, accountName) !== undefined) {
-      await this.vaultService.deleteItem(GITHUB_VAULT_CATEGORY, accountName);
+    // The OAuth token, and a personal access token saved by `/connect github --token` (`<account>.token`).
+    for (const key of [accountName, `${accountName}.token`]) {
+      if (this.vaultService?.getSecret(GITHUB_VAULT_CATEGORY, key) !== undefined) {
+        await this.vaultService.deleteItem(GITHUB_VAULT_CATEGORY, key);
+      }
     }
   }
 

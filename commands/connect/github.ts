@@ -1,6 +1,8 @@
 import { CommandFailedError } from "@tokenring-ai/agent/AgentError";
 import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import { type ConfigLayer, ConfigurationService } from "@tokenring-ai/app";
+import SecretService from "@tokenring-ai/secrets/SecretService";
+import { accountCredentialRef, saveToVaultThen, VAULT_LOCKED_MESSAGE } from "@tokenring-ai/secrets/vaultCredentials";
 import authorizeAccount from "../../authorizeAccount.ts";
 import GitHubService from "../../GitHubService.ts";
 
@@ -12,7 +14,7 @@ const inputSchema = {
       defaultValue: "github",
     },
     token: {
-      description: "A personal access token to use instead of the OAuth sign-in flow",
+      description: "A personal access token to use instead of the OAuth sign-in flow. Typed inline it stays in the chat history",
       type: "string",
       required: false,
     },
@@ -49,13 +51,12 @@ export default {
   inputSchema,
   execute: async ({ agent, args: { login, name, token, baseUrl, scopes, save } }: AgentCommandInputType<typeof inputSchema>): Promise<string> => {
     const gitHubService = agent.requireService(GitHubService);
+    const secrets = agent.requireService(SecretService);
+    // A personal access token goes to the vault; refuse before asking for one if it can't be saved.
+    if ((token || !gitHubService.hasOAuthClient()) && !secrets.canStore()) throw new CommandFailedError(VAULT_LOCKED_MESSAGE);
 
     // Without OAuth app credentials the sign-in flow can't run, so fall back to a personal access token.
     if (!token && !gitHubService.hasOAuthClient()) {
-      if (agent.headless) {
-        throw new CommandFailedError("GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, or pass --token=<personal access token>.");
-      }
-
       token =
         (await agent.askForText({
           message: "GitHub OAuth is not configured. Enter a personal access token to connect with instead.",
@@ -68,38 +69,43 @@ export default {
       }
     }
 
+    const tokenRef = token ? accountCredentialRef("github", name, "token") : undefined;
     const configService = agent.requireService(ConfigurationService);
-    const overrides = configService.getOverrides(save);
-    const github = (overrides.github ?? {}) as { accounts?: Record<string, unknown> };
-    const accounts = github.accounts ?? {};
-    const existingAccount = (accounts[name] ?? {}) as Record<string, unknown>;
+    const saveSettings = async () => {
+      const overrides = configService.getOverrides(save);
+      const github = (overrides.github ?? {}) as { accounts?: Record<string, unknown> };
+      const accounts = github.accounts ?? {};
+      const existingAccount = (accounts[name] ?? {}) as Record<string, unknown>;
 
-    const next = {
-      ...overrides,
-      github: {
-        ...github,
-        accounts: {
-          ...accounts,
-          [name]: {
-            ...existingAccount,
-            ...(login && { login }),
-            ...(baseUrl && { baseUrl }),
-            ...(scopes && {
-              scopes: scopes
-                .split(",")
-                .map(scope => scope.trim())
-                .filter(Boolean),
-            }),
-            ...(token && { token }),
+      const next = {
+        ...overrides,
+        github: {
+          ...github,
+          accounts: {
+            ...accounts,
+            [name]: {
+              ...existingAccount,
+              ...(login && { login }),
+              ...(baseUrl && { baseUrl }),
+              ...(scopes && {
+                scopes: scopes
+                  .split(",")
+                  .map(scope => scope.trim())
+                  .filter(Boolean),
+              }),
+              ...(tokenRef && { token: tokenRef }),
+            },
           },
         },
-      },
-    } satisfies ConfigLayer;
+      } satisfies ConfigLayer;
 
-    const result = await configService.apply(save, next);
-    if (!result.ok) {
-      throw new CommandFailedError(result.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("\n"));
-    }
+      const result = await configService.apply(save, next);
+      if (!result.ok) {
+        throw new CommandFailedError(result.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("\n"));
+      }
+    };
+    if (token && tokenRef) await saveToVaultThen(secrets, [[tokenRef, token]], saveSettings);
+    else await saveSettings();
 
     if (token) {
       // The token is already usable, so confirm it works and report who it belongs to.
@@ -117,6 +123,9 @@ GITHUB_CLIENT_SECRET) and register http://127.0.0.1:<web host port>/oauth/github
 as the app's authorization callback URL.
 
 Pass --token to connect with a personal access token instead, which needs no OAuth app.
+The token is saved in the vault (category "github", key "<name>.token") and the
+configuration only references it, so the vault must be unlocked. A token typed inline
+stays in the chat history; without OAuth configured, omit --token to get a masked prompt.
 
 ## Examples
 

@@ -80,18 +80,23 @@ export default function IssuePane({ owner, repo, number }: IssuePaneProps) {
   }, [draft, executeComment, key, number, query.mutate, ref, refreshLists]);
 
   type UpdateArgs = Omit<Parameters<typeof githubRPCClient.updateIssue>[0], "owner" | "repo" | "account" | "issueNumber">;
+  /** One update at a time; true when it succeeded (false on failure, or when another was running). */
   const update = useCallback(
-    async (patch: UpdateArgs, done: string) => {
-      await executeUpdate(async () => {
+    async (patch: UpdateArgs, done: string): Promise<boolean> => {
+      const succeeded = await executeUpdate(async () => {
         try {
           await githubRPCClient.updateIssue({ ...ref, issueNumber: number, ...patch });
           toastManager.success(done, { duration: 2500 });
           void query.mutate();
           refreshLists();
+          return true;
         } catch (error) {
           toastManager.error(formatError(error), { duration: 6000 });
+          return false;
         }
       });
+      if (succeeded === undefined) toastManager.info("Another change is still being saved; try again in a moment.", { duration: 3000 });
+      return succeeded === true;
     },
     [executeUpdate, number, query.mutate, ref, refreshLists],
   );
@@ -139,7 +144,8 @@ export default function IssuePane({ owner, repo, number }: IssuePaneProps) {
       return;
     }
     const assignees = parseLoginList(edit.assignees);
-    await update(
+    // The form stays open with your text if the save fails.
+    const saved = await update(
       {
         ...(title !== issue.title ? { title } : {}),
         ...(edit.body !== (issue.body ?? "") ? { body: edit.body } : {}),
@@ -147,7 +153,7 @@ export default function IssuePane({ owner, repo, number }: IssuePaneProps) {
       },
       "Issue updated",
     );
-    setEdit(null);
+    if (saved) setEdit(null);
   }, [edit, issue, update]);
 
   return (

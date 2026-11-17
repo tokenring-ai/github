@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -11,7 +12,8 @@ const name = "github_commentPR";
 const displayName = "GitHub/commentPR";
 const description = "Comment on a pull request, either on the conversation thread or inline on a specific file and line";
 
-const SAFETY_LEVEL = 5;
+/** Public, and notifies the PR participants (approval standard: reaches people). */
+const SAFETY_LEVEL = 8;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -45,6 +47,7 @@ async function execute({ owner, repo, prNumber, body, ...options }: z.output<typ
         intelligentTruncate(body, { maxLength: 2_000 }),
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.pr.comment`, summary: `Comment on pull requests in ${owner}/${repo}` },
       default: false,
     },
     agent,

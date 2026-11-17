@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -11,8 +12,8 @@ const name = "github_reviewPR";
 const displayName = "GitHub/reviewPR";
 const description = "Submit a review on a pull request: approve, request changes, or comment";
 
-/** An approval carries real weight — it can satisfy a branch protection rule and unblock a merge. */
-const SAFETY_LEVEL = 6;
+/** Public, and notifies the PR author and watchers (approval standard: reaches people). */
+const SAFETY_LEVEL = 8;
 
 const EVENT_LABELS = {
   APPROVE: "Approve",
@@ -45,6 +46,7 @@ async function execute({ owner, repo, prNumber, ...options }: z.output<typeof in
         options.body ? intelligentTruncate(options.body, { maxLength: 2_000 }) : "(empty)",
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.pr.review`, summary: `Review pull requests in ${owner}/${repo}` },
       default: false,
     },
     agent,

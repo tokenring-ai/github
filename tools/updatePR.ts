@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { permissionSlug } from "@tokenring-ai/chat";
 import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
@@ -10,7 +11,8 @@ const name = "github_updatePR";
 const displayName = "GitHub/updatePR";
 const description = "Update a pull request's title, body, state, base branch, labels, assignees, or reviewers";
 
-const SAFETY_LEVEL = 5;
+/** Edits a shared record that can be changed back (approval standard: shared change). */
+const SAFETY_LEVEL = 7;
 
 const inputSchema = z.object({
   owner: z.string().min(1).describe("GitHub repository owner or org"),
@@ -51,6 +53,7 @@ async function execute({ owner, repo, prNumber, ...options }: z.output<typeof in
         ...changes.map(change => `  ${change}`),
       ].join("\n"),
       safetyLevel: SAFETY_LEVEL,
+      permission: { id: `github.${permissionSlug(owner)}.${permissionSlug(repo)}.pr.update`, summary: `Update pull requests in ${owner}/${repo}` },
       default: false,
     },
     agent,

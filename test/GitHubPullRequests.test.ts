@@ -626,7 +626,7 @@ describe("GitHub pull requests", () => {
 
       expect(requests).toHaveLength(1);
       expect(result.result).toContain("octo/repo#42");
-      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_createPR", safetyLevel: 6 });
+      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_createPR", safetyLevel: 8 });
     });
 
     it("does not submit a review when approval is denied", async () => {
@@ -639,7 +639,7 @@ describe("GitHub pull requests", () => {
       );
 
       expect(requests).toHaveLength(0);
-      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_reviewPR", safetyLevel: 6 });
+      expect(approval.mock.calls[0]?.[0]).toMatchObject({ toolName: "github_reviewPR", safetyLevel: 8 });
     });
 
     it("refuses an update that changes nothing, without prompting", async () => {
